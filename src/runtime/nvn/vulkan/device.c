@@ -6,6 +6,7 @@
 #endif
 #include <math.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,9 +28,8 @@ static atomic_bool ui_ready;
 static VkDebugUtilsMessengerEXT messenger;
 
 // ================================================================== dispatch / custom GPU drivers
-// (PAUSADO: trabalho do adrenotools/Turnip interrompido em 20/10 ~00:05 a pedido da Emily.
-//  Para retomar: definir LETSGO_ADRENOTOOLS no build, reativar vk_dispatch.h em vk.h, fiar
-//  create_instance() no custom gipa e popular a tabela.)
+// Ativo no Android: build-runtime.sh define LETSGO_ADRENOTOOLS e vk.h inclui vk_dispatch.h. Para conferir o
+// driver realmente usado, ler no log a linha "[vk] active driver: ..." (turnip Mesa = driverID 18).
 #ifdef LETSGO_ADRENOTOOLS
 // Every Vulkan entry point goes through g_vkd (vk_dispatch.h). At startup the table is filled from the
 // loader in use: the system loader normally, or a custom GPU driver (Turnip) via adrenotools when the
@@ -41,48 +41,58 @@ static PFN_vkGetInstanceProcAddr g_gipa;  // the loader's vkGetInstanceProcAddr 
 #include <adrenotools/driver.h>
 #endif
 
-// Resolve the loader: adrenotools + the custom driver when configured, else the system loader.
+// A GPU driver the player chose and that cannot be used stops the app with a message that says so. Falling back to
+// the system driver silently is worse than stopping: the game then runs (or fails) on a driver the launcher does
+// not show, and its symptoms (missing text without VK_EXT_external_memory_host, no Vulkan 1.3) get blamed on the
+// wrong cause.
+static void __attribute__((noreturn, format(printf, 1, 2))) driver_refused(const char *fmt, ...) {
+    char msg[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof msg, fmt, ap);
+    va_end(ap);
+    LOG("FATAL: [vk] %s\n", msg);
+    fflush(stderr);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Let's Go Recomp - GPU driver", msg, NULL);
+    _exit(1);
+}
+
+// Resolve the loader: adrenotools + the custom driver when one is selected (and nothing else then), else the
+// system loader.
 static PFN_vkGetInstanceProcAddr load_gipa(void) {
 #ifdef __ANDROID__
     const char *drv = getenv("LARECOMP_GPU_DRIVER");
     const char *libdir = getenv("LARECOMP_NATIVE_LIB_DIR");
-    if (drv && *drv && libdir && *libdir) {
+    if (drv && *drv) {
         // Wonder pattern: verify the driver .so is readable before calling adrenotools.
-        if (access(drv, R_OK) != 0) {
-            LOG("[vk] custom GPU driver %s not readable (%s), using system driver\n", drv, strerror(errno));
-        } else {
-        // drv = "<dir>/<lib>.so": adrenotools wants the dir and the bare name separately.
+        if (access(drv, R_OK) != 0)
+            driver_refused("The selected GPU driver cannot be read (%s): %s\n\nImport it again, or choose the system "
+                           "driver in the launcher.", strerror(errno), drv);
+        if (!libdir || !*libdir) driver_refused("The selected GPU driver %s cannot be loaded: no native library "
+                                                "directory (LARECOMP_NATIVE_LIB_DIR).", drv);
+        // drv = "<dir>/<lib>.so": adrenotools wants the dir (with its trailing slash) and the bare name separately.
         const char *slash = strrchr(drv, '/');
-        if (slash && slash[1]) {
-            char dir[512];
-            size_t dl = (size_t)(slash - drv);
-            // BOTW pattern: dir with trailing slash (adrenotools expects "dir/" not "dir")
-            if (dl + 1 < sizeof dir) {
-                memcpy(dir, drv, dl);
-                dir[dl] = '/';
-                dir[dl + 1] = 0;
-                void *h = adrenotools_open_libvulkan(RTLD_NOW | RTLD_LOCAL, ADRENOTOOLS_DRIVER_CUSTOM,
-                                                     NULL, libdir, dir, slash + 1, NULL, NULL);
-                if (h) {
-                    void *g = dlsym(h, "vkGetInstanceProcAddr");
-                    if (g) {
-                        LOG("[vk] custom GPU driver via adrenotools: %s\n", drv);
-                        return (PFN_vkGetInstanceProcAddr)g;
-                    }
-                    LOG("[vk] custom GPU driver %s loaded but vkGetInstanceProcAddr not found: %s\n", drv, dlerror());
-                } else {
-                    // v0079 Path 1: dlerror() is often NULL from adrenotools (its 5 nullptr
-                    // returns don't set it). Log the parameters so the failure is diagnosable.
-                    const char *e = dlerror();
-                    LOG("[vk] custom GPU driver %s failed to load via adrenotools: %s (dir=%s name=%s hookLibDir=%s)\n",
-                        drv, e ? e : "(adrenotools returned NULL without dlerror — likely linkernsbypass or hook install failure)",
-                        dir, slash + 1, libdir);
-                }
-                LOG("[vk] using the system driver\n");
-            }
+        char dir[512];
+        size_t dl = slash ? (size_t)(slash - drv) : 0;
+        if (!slash || !slash[1] || dl + 2 > sizeof dir) driver_refused("Invalid GPU driver path: %s", drv);
+        memcpy(dir, drv, dl);
+        dir[dl] = '/';
+        dir[dl + 1] = 0;
+        void *h = adrenotools_open_libvulkan(RTLD_NOW | RTLD_LOCAL, ADRENOTOOLS_DRIVER_CUSTOM, NULL, libdir, dir,
+                                             slash + 1, NULL, NULL);
+        if (!h) {
+            // dlerror() is often NULL here: adrenotools has return paths that do not set it.
+            const char *e = dlerror();
+            driver_refused("The selected GPU driver failed to load: %s\n\n%s\n\nIt may not be made for this GPU. "
+                           "Import another one, or choose the system driver in the launcher.", drv,
+                           e ? e : "adrenotools returned no library (no dlerror)");
         }
-        } // end access check
+        void *g = dlsym(h, "vkGetInstanceProcAddr");
+        if (!g) driver_refused("The selected GPU driver %s has no vkGetInstanceProcAddr.", drv);
+        LOG("[vk] custom GPU driver via adrenotools: %s\n", drv);
+        return (PFN_vkGetInstanceProcAddr)g;
     }
+    LOG("[vk] system GPU driver (no custom driver selected)\n");
 #endif
     // System loader: the linked libvulkan entry point. (The plain identifier is macro-redirected
     // to g_vkd by vk_dispatch.h, so resolve it explicitly from the loaded libvulkan.)
@@ -518,7 +528,18 @@ static void pick_device(void) {
         if ((int)i == want) score = 100;
         if (score > best_score) { best_score = score; best = (int)i; }
     }
-    if (best < 0) FATAL("no Vulkan 1.3 device\n");
+    if (best < 0) {
+#if defined(__ANDROID__) && defined(LETSGO_ADRENOTOOLS)
+        // Typically a phone whose system driver stops at Vulkan 1.1/1.2 (Adreno 730 on Android 16: 1.1): only an
+        // imported Turnip driver can run the game there.
+        if (!getenv("LARECOMP_GPU_DRIVER") || !*getenv("LARECOMP_GPU_DRIVER"))
+            driver_refused("This phone's system GPU driver does not offer Vulkan 1.3, which the game needs.\n\n"
+                           "Import a Turnip driver made for this GPU in the launcher, then select it.");
+        driver_refused("The selected GPU driver does not offer a Vulkan 1.3 device on this GPU.\n\n%s\n\n"
+                       "Import a driver made for this GPU.", getenv("LARECOMP_GPU_DRIVER"));
+#endif
+        FATAL("no Vulkan 1.3 device\n");
+    }
     g_vk.phys = pd[best];
     free(pd);
     vkGetPhysicalDeviceProperties(g_vk.phys, &g_vk.props);

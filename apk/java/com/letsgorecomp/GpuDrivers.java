@@ -25,11 +25,12 @@ import java.util.zip.ZipInputStream;
  *   <files>/gpu_drivers/<slug>/{meta.json, <libraryName>.so}
  * The launcher writes the choice to config.txt (LARECOMP_GPU_DRIVER=&lt;slug&gt;, LARECOMP_GPU_DRIVER_LIB=&lt;.so&gt;); the
  * runtime loads it through adrenotools in the :game process. No LARECOMP_GPU_DRIVER line = the system driver.
+ * The APK ships no driver: the only source is a .zip the player imports (Turnip builds are GPL Mesa binaries
+ * whose source offer has to travel with them, so they are not redistributed here).
  */
 final class GpuDrivers {
     static final String KEY_DRIVER = "LARECOMP_GPU_DRIVER";
     static final String KEY_LIB = "LARECOMP_GPU_DRIVER_LIB";
-    static final String BUNDLED_ASSET = "turnip-8g2.zip";
 
     static final class Driver {
         final String slug;  // folder name under gpu_drivers/
@@ -193,100 +194,6 @@ final class GpuDrivers {
         }
         Log.i("lasrecomp", "gpu driver imported: " + d.slug + " (" + d.libraryName + ")");
         return new ImportResult(d, null);
-    }
-
-    /**
-     * First run: unpack the Turnip driver bundled in assets/ to gpu_drivers/ and pre-select it when nothing is
-     * selected yet. Never replaces or re-selects: an import or a choice the player made wins.
-     */
-    static void installBundled(Context c) {
-        byte[] metaBytes;
-        try (InputStream in = c.getAssets().open(BUNDLED_ASSET);
-             ZipInputStream z = new ZipInputStream(in)) {
-            ZipEntry e;
-            metaBytes = null;
-            while ((e = z.getNextEntry()) != null) {
-                if (!e.isDirectory() && "meta.json".equals(base(e.getName()))) {
-                    metaBytes = readAll(z);
-                    break;
-                }
-            }
-        } catch (IOException ex) {
-            Log.w("lasrecomp", "bundled driver: " + ex);
-            return;
-        }
-        if (metaBytes == null) return;
-        String libraryName;
-        try {
-            JSONObject meta = new JSONObject(new String(metaBytes, "UTF-8"));
-            libraryName = meta.optString("libraryName", "");
-        } catch (Exception ex) {
-            return;
-        }
-        if (libraryName.isEmpty()) return;
-        File dir = new File(driversDir(c), slug(BUNDLED_ASSET.replace(".zip", "")));
-        if (!new File(dir, libraryName).isFile()) {
-            ImportResult r = importAsset(c, BUNDLED_ASSET, dir);
-            if (r.error != null) {
-                Log.w("lasrecomp", "bundled driver: " + r.error);
-                return;
-            }
-        }
-        if (c.getSharedPreferences("letsgo", Context.MODE_PRIVATE).getString(KEY_DRIVER, null) == null) {
-            Driver d = read(dir);
-            if (d != null) {
-                select(c, d);
-                Log.i("lasrecomp", "gpu driver pre-selected: " + d.slug);
-            }
-        }
-    }
-
-    /** Unpacks an asset zip (meta.json + its libraryName .so) into dir. */
-    private static ImportResult importAsset(Context c, String asset, File dir) {
-        byte[] metaBytes = null;
-        String libraryName = null;
-        try (InputStream in = c.getAssets().open(asset);
-             ZipInputStream z = new ZipInputStream(in)) {
-            ZipEntry e;
-            while ((e = z.getNextEntry()) != null) {
-                if (!e.isDirectory() && "meta.json".equals(base(e.getName()))) {
-                    metaBytes = readAll(z);
-                    break;
-                }
-            }
-        } catch (IOException ex) {
-            return new ImportResult(null, ex.getMessage());
-        }
-        if (metaBytes == null) return new ImportResult(null, "no meta.json");
-        try {
-            libraryName = new JSONObject(new String(metaBytes, "UTF-8")).optString("libraryName", "");
-        } catch (Exception ex) {
-            return new ImportResult(null, "bad meta.json");
-        }
-        if (libraryName.isEmpty()) return new ImportResult(null, "no libraryName");
-        byte[] soBytes = null;
-        try (InputStream in = c.getAssets().open(asset);
-             ZipInputStream z = new ZipInputStream(in)) {
-            ZipEntry e;
-            while ((e = z.getNextEntry()) != null) {
-                if (!e.isDirectory() && libraryName.equals(base(e.getName()))) {
-                    soBytes = readAll(z);
-                    break;
-                }
-            }
-        } catch (IOException ex) {
-            return new ImportResult(null, ex.getMessage());
-        }
-        if (soBytes == null) return new ImportResult(null, "no " + libraryName);
-        dir.mkdirs();
-        try {
-            write(new File(dir, "meta.json"), metaBytes);
-            write(new File(dir, libraryName), soBytes);
-        } catch (IOException ex) {
-            deleteTree(dir);
-            return new ImportResult(null, ex.getMessage());
-        }
-        return new ImportResult(read(dir), null);
     }
 
     /** Reads an installed driver folder; null when it is not a valid driver. */

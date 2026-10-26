@@ -63,15 +63,21 @@ se for bom, deixa como está.
 - `gcopy` é **só leitura** — escritas em memória global (STG) continuam descartadas.
 - A hipótese "layout escrito via STG" foi investigada e refutada (sonda de estabilidade v0087).
 
-## 2. Driver Turnip não assume (pendente)
+## 2. Driver Turnip (resolvido no código; nenhum driver vem no APK)
 
-- O adrenotools localiza o arquivo Turnip (`turnip-8g2` ou `turnip-v26-3-0-r6-oneui`),
-  mas a GPU ativa continua o Adreno do sistema (driver v512.676.73).
-- Hipótese: falha do `linkernsbypass` no Android 16.
-- O `ADT_LOG` foi adicionado ao fonte do adrenotools mas **nunca compilado** — o APK usa
-  `libadrenotools.so` prebuilt.
-- Turnip é o único caminho com host import (resolveria o texto sem `gcopy`), mas é mais
-  lento no Let's Go (18–22 fps vs 30 do sistema, medição antiga).
+- Causa: as macros de dispatch eram canceladas em `device.c` e nunca restauradas, então o jogo
+  desenhava com o driver do sistema mesmo com o Turnip carregado (corrigido pelo PR #3).
+- O APK não traz mais nenhum driver: cada um importa o seu `.zip` (meta.json + .so na raiz)
+  em "Importar driver Turnip (.zip)". Os builds Turnip são binários Mesa de terceiros; quem
+  os redistribui tem de oferecer o código-fonte correspondente.
+- Para confirmar o driver em uso: `[vk] active driver: turnip Mesa driver (driverID=18, ...)`
+  no `lasrecomp.log`; sem driver escolhido, `[vk] system GPU driver (no custom driver selected)`.
+- Um driver escolhido que não carrega (arquivo ilegível, adrenotools falha, sem dispositivo
+  Vulkan 1.3) **para o app com uma mensagem**: o jogo nunca volta sozinho ao driver do sistema.
+  O mesmo vale para um driver do sistema sem Vulkan 1.3 (Adreno 730 no Android 16: Vulkan 1.1),
+  onde só um Turnip importado roda o jogo.
+- Lançador e jogo dividem o mesmo processo: `LARECOMP_GPU_DRIVER` é apagada quando o driver
+  do sistema é escolhido, senão o driver de um lançamento anterior continuava ativo.
 
 ## 3. Atraso de ~2s na primeira abertura pós-v0078 (provável custo único)
 

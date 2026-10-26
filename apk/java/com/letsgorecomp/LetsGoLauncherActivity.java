@@ -186,7 +186,7 @@ public class LetsGoLauncherActivity extends Activity {
                 }
                 java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(LetsGoLauncherActivity.this);
                 if (all.isEmpty()) {
-                    sb.append("Nenhum driver Turnip instalado.");
+                    sb.append("Nenhum driver Turnip instalado. Importe o seu (.zip com meta.json e a .so).");
                 } else {
                     sb.append("Instalados: ");
                     for (int i = 0; i < all.size(); i++) {
@@ -197,10 +197,6 @@ public class LetsGoLauncherActivity extends Activity {
                 drvStatus.setText(sb.toString());
             }
         };
-        refreshDrivers.run();
-
-        // Install the bundled Turnip on first run (like Wonder).
-        GpuDrivers.installBundled(this);
         refreshDrivers.run();
 
         Button importDrv = new Button(this);

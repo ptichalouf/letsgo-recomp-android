@@ -78,20 +78,23 @@ public class LetsGoActivity extends SDLActivity {
         // posições do diálogo (não o blob centralizado da v0087).
         // Custom GPU driver (Turnip via adrenotools): set the env before the native
         // runtime loads, so load_gipa() in device.c picks it up. Null = system driver.
+        // The launcher and the game share one process, and the environment outlives an
+        // Activity: the variable must be cleared when the system driver is chosen, or a
+        // driver selected for an earlier launch keeps running while the launcher shows
+        // "system driver". A selected driver whose .so is missing is still passed on:
+        // the runtime then stops with a message instead of drawing with another driver.
         try {
             GpuDrivers.Driver drv = GpuDrivers.selected(this);
             if (drv != null) {
                 java.io.File so = new java.io.File(
                         new java.io.File(GpuDrivers.driversDir(this), drv.slug), drv.libraryName);
-                if (so.isFile()) {
-                    android.system.Os.setenv("LARECOMP_GPU_DRIVER", so.getAbsolutePath(), true);
-                    android.system.Os.setenv("LARECOMP_NATIVE_LIB_DIR",
-                            getApplicationInfo().nativeLibraryDir, true);
-                    android.util.Log.i("lasrecomp", "[gpu] custom driver: " + so.getAbsolutePath());
-                } else {
-                    android.util.Log.w("lasrecomp", "[gpu] selected driver .so missing: " + so.getAbsolutePath());
-                }
+                android.system.Os.setenv("LARECOMP_GPU_DRIVER", so.getAbsolutePath(), true);
+                android.system.Os.setenv("LARECOMP_NATIVE_LIB_DIR",
+                        getApplicationInfo().nativeLibraryDir, true);
+                android.util.Log.i("lasrecomp", "[gpu] custom driver: " + so.getAbsolutePath()
+                        + (so.isFile() ? "" : " (MISSING)"));
             } else {
+                android.system.Os.unsetenv("LARECOMP_GPU_DRIVER");
                 android.util.Log.i("lasrecomp", "[gpu] system driver (no custom driver selected)");
             }
         } catch (Exception e) {
