@@ -38,22 +38,68 @@ public class LetsGoLauncherActivity extends Activity {
      *  import of an earlier version wrote there. The app does not import game packages: the player brings the
      *  game already extracted (extracted/exefs/ + extracted/romfs/ or extracted/romfs.bin). */
     static GameFolder.Check gameFolder(android.content.Context ctx) {
-        String dir = gameDir(ctx);
+        return gameFolder(ctx, gameDir(ctx));
+    }
+
+    private static GameFolder.Check gameFolder(android.content.Context ctx, String dir) {
         File base = dir != null ? new File(dir) : ctx.getFilesDir();
         if (dir == null && !new File(base, "extracted").isDirectory()) return GameFolder.inspect(null);
         return GameFolder.inspect(base);
     }
 
+    /** Everything that decides whether "Play" can start the game, computed once. The launcher's screen, the Play
+     *  button, the log line and the game's data root (LetsGoActivity -> LARECOMP_DATA_ROOT) all read this one
+     *  object, so the screen cannot say "choose the folder" while the runtime is handed a ready folder. */
+    static final class Launch {
+        final String dir;              // the chosen folder (null: none chosen)
+        final String dataRoot;         // what the runtime gets: dir, or the app's files when none is chosen
+        final GameFolder.Check folder;
+        final boolean needAccess, gameLib, ready;
+
+        Launch(android.content.Context ctx) {
+            dir = gameDir(ctx);
+            dataRoot = dir != null ? dir : ctx.getFilesDir().getAbsolutePath();
+            folder = gameFolder(ctx, dir);
+            needAccess = GameDir.needsAllFilesAccess(ctx, dir);
+            gameLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "liblasgame.so").exists();
+            ready = gameLib && !needAccess && folder.playable();
+        }
+
+        String summary() {
+            return "state " + folder.state + " ready=" + ready + " gameLib=" + gameLib + " allFiles=" + !needAccess
+                + " dir=" + dir + " root=" + dataRoot;
+        }
+    }
+
+    static Launch launch(android.content.Context ctx) { return new Launch(ctx); }
+
     /** True only when the game can start: the game code in the APK, all-files access to the folder, and a
      *  complete game folder (GameFolder: exefs of Let's Go, and a whole romfs.bin or the romfs/ folder). */
     public static boolean gameDataReady(android.content.Context ctx) {
-        File gameLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "liblasgame.so");
-        return gameLib.exists() && !GameDir.needsAllFilesAccess(ctx, gameDir(ctx)) && gameFolder(ctx).playable();
+        return launch(ctx).ready;
+    }
+
+    // Every launcher on screen (the system can keep more than one: a launch from the home screen over a task that
+    // already has one, a fold/unfold). Whatever changes the folder refreshes all of them, not just the one that asked.
+    private static final java.util.Set<LetsGoLauncherActivity> LIVE =
+        java.util.Collections.newSetFromMap(new java.util.WeakHashMap<LetsGoLauncherActivity, Boolean>());
+
+    static void refreshAll() {
+        for (LetsGoLauncherActivity a : new java.util.ArrayList<>(LIVE)) a.refreshStatus();
     }
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        // Opened from the home screen while the task already has a launcher (or the game): bring that one back
+        // instead of stacking a second launcher whose screen would lag behind the first.
+        if (!isTaskRoot() && getIntent() != null && Intent.ACTION_MAIN.equals(getIntent().getAction())
+                && getIntent().hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            android.util.Log.i("lasrecomp", "[folder] launcher already open in this task: not stacking another");
+            finish();
+            return;
+        }
+        LIVE.add(this);
         Txt.init(this);  // the phone's language for every word shown (res/values-en, values-fr; PT by default)
 
         // Request full storage access (needed for direct fopen() of game files)
@@ -96,8 +142,8 @@ public class LetsGoLauncherActivity extends Activity {
             @Override public void onClick(android.view.View v) {
                 // Never launch into a native crash: without complete game data
                 // the runtime FATALs (see main.c boot()). Tell the user instead.
-                if (!gameDataReady(LetsGoLauncherActivity.this)) {
-                    refreshStatus();
+                Launch st = refreshStatus();
+                if (st == null || !st.ready) {
                     android.widget.Toast.makeText(LetsGoLauncherActivity.this,
                         Txt.t("not_ready", "O jogo ainda não está pronto: veja o estado da pasta acima."),
                         android.widget.Toast.LENGTH_LONG).show();
@@ -141,7 +187,7 @@ public class LetsGoLauncherActivity extends Activity {
         forget.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 GameDir.forget(LetsGoLauncherActivity.this);
-                refreshStatus();
+                refreshAll();
                 android.widget.Toast.makeText(LetsGoLauncherActivity.this,
                     Txt.t("forgot", "Pasta esquecida. Os arquivos não foram apagados."), android.widget.Toast.LENGTH_LONG).show();
             }
@@ -342,7 +388,7 @@ public class LetsGoLauncherActivity extends Activity {
         // The phone's motion sensor aims the Poke Ball throws, like the Switch in handheld mode (GyroAim.java).
         // Off by default: the touch controls aim as before; checked, both work together.
         final CheckBox gyroAim = new CheckBox(this);
-        gyroAim.setText("Mirar com o giroscópio (inclinar o telefone)");
+        gyroAim.setText(Txt.t("gyro", "Mirar com o giroscópio (inclinar o telefone)"));
         gyroAim.setTextColor(Color.rgb(200, 210, 220));
         gyroAim.setChecked(getSharedPreferences("letsgo", MODE_PRIVATE).getBoolean("gyro", false));
         root.addView(gyroAim, lp(-1, -2));
@@ -466,8 +512,21 @@ public class LetsGoLauncherActivity extends Activity {
     }
 
     @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) refreshStatus();  // back from the folder picker, Settings or a dialog
+    }
+
+    @Override
+    protected void onDestroy() {
+        LIVE.remove(this);
+        super.onDestroy();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        if (isFinishing()) return;
         // Verdict on a driver that was on trial: the game got to its first frames with it, or it did not and the
         // launcher rolls it back (the driver that last worked here, or none: said so, never silently).
         GpuDrivers.TrialOutcome t = GpuDrivers.checkTrial(this, LetsGoActivity.running);
@@ -484,29 +543,53 @@ public class LetsGoLauncherActivity extends Activity {
 
     private void refreshDrivers() {
         GpuDrivers.Driver sel = GpuDrivers.selected(this);
+        java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(this);
         StringBuilder sb = new StringBuilder();
+        // "Selected" is what the next Play hands the game; "last start" is what the game was really handed
+        // (LetsGoActivity records it, and the runtime loads exactly that file or stops).
         if (sel != null) {
-            sb.append(Txt.t("in_use_driver", "Em uso: ")).append(sel.name);
-            if (!sel.driverVersion.isEmpty()) sb.append(" (").append(sel.driverVersion).append(")");
+            sb.append(Txt.t("selected_driver", "Selecionado: ")).append(label(sel, all));
             sb.append(Txt.t("origin", "\n  origem: ")).append(sel.origin());
             sb.append(sel.started ? Txt.t("worked_before", " · já funcionou aqui") : Txt.t("on_trial", " · ainda não testado: em teste no próximo Jogar"));
             sb.append("\n");
         } else {
-            sb.append(Txt.t("in_use", "Em uso: driver do sistema\n"));
+            sb.append(Txt.t("selected_system", "Selecionado: driver do sistema\n"));
         }
-        java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(this);
+        String last = GpuDrivers.lastLaunch(this);
+        if (last != null) {
+            String lastName = Txt.t("system_driver", "driver do sistema");
+            if (!last.isEmpty()) {
+                lastName = last;
+                for (GpuDrivers.Driver d : GpuDrivers.list(GpuDrivers.driversDir(this)))
+                    if (last.equals(new File(new File(GpuDrivers.driversDir(this), d.slug), d.libraryName).getAbsolutePath()))
+                        lastName = label(d, all);
+            }
+            boolean same = sel == null ? last.isEmpty()
+                : last.equals(new File(new File(GpuDrivers.driversDir(this), sel.slug), sel.libraryName).getAbsolutePath());
+            if (!same) sb.append(Txt.t("last_start", "Último início do jogo: ")).append(lastName).append("\n");
+        }
         if (all.isEmpty()) {
             sb.append(Txt.t("drivers_none", "Nenhum driver Turnip instalado: baixe o recomendado ou importe um .zip."));
         } else {
             sb.append(Txt.t("installed", "Instalados (toque para trocar): "));
-            for (int i = 0; i < all.size(); i++) {
-                GpuDrivers.Driver d = all.get(i);
-                if (i > 0) sb.append(", ");
-                sb.append(d.name);
+            for (GpuDrivers.Driver d : all) {
+                sb.append("\n  • ").append(label(d, all));
+                if (sel != null && d.slug.equals(sel.slug)) sb.append(" ✓");
                 if (d.failed && !d.started) sb.append(Txt.t("did_not_start", " [não iniciou]"));
             }
         }
         drvStatus.setText(sb.toString());
+        android.util.Log.i("lasrecomp", "[gpu] launcher: selected=" + (sel == null ? "system" : sel.slug)
+            + " last_start=" + last + " packages=" + all.size());
+    }
+
+    /** A driver's name, with its version, and its folder when another package has the same name and version. */
+    private static String label(GpuDrivers.Driver d, java.util.List<GpuDrivers.Driver> all) {
+        String l = d.name + (d.driverVersion.isEmpty() ? "" : " (" + d.driverVersion + ")");
+        for (GpuDrivers.Driver o : all)
+            if (o != d && !o.slug.equals(d.slug) && o.name.equals(d.name) && o.driverVersion.equals(d.driverVersion))
+                return l + " [" + d.slug + "]";
+        return l;
     }
 
     private void showTrialFailure(GpuDrivers.TrialOutcome t) {
@@ -684,12 +767,12 @@ public class LetsGoLauncherActivity extends Activity {
         }, "gpu-download").start();
     }
 
-    private void refreshStatus() {
-        if (status == null) return;
-        String dir = gameDir(this);
-        GameFolder.Check c = gameFolder(this);
-        boolean needAccess = GameDir.needsAllFilesAccess(this, dir);
-        boolean gameLib = new File(getApplicationInfo().nativeLibraryDir, "liblasgame.so").exists();
+    private Launch refreshStatus() {
+        if (status == null) return null;
+        Launch st = launch(this);
+        GameFolder.Check c = st.folder;
+        String dir = st.dir;
+        boolean needAccess = st.needAccess;
         String where = dir != null ? Txt.t("folder", "Pasta: ") + dir : "";
         String text;
         if (needAccess) {
@@ -697,20 +780,22 @@ public class LetsGoLauncherActivity extends Activity {
         } else {
             text = describe(c) + (where.isEmpty() ? "" : "\n" + where);
         }
-        if (!gameLib) text += Txt.t("no_gamelib", "\nEste APK não tem o código do jogo (liblasgame.so).");
+        if (!st.gameLib) text += Txt.t("no_gamelib", "\nEste APK não tem o código do jogo (liblasgame.so).");
         status.setText(text);
-        boolean ready = gameLib && !needAccess && c.playable();
-        android.util.Log.i("lasrecomp", "[folder] state " + c.state + (needAccess ? " (no all-files access)" : "")
-            + " dir=" + dir + " persisted=" + persistedTrees());
         if (play != null) {
-            play.setEnabled(ready);
-            play.setAlpha(ready ? 1f : 0.4f);
+            play.setEnabled(st.ready);
+            play.setAlpha(st.ready ? 1f : 0.4f);
         }
         if (pick != null) pick.setText(dir == null ? Txt.t("sel_folder", "Escolher a pasta do jogo") : Txt.t("retry", "Escolher outra pasta"));
         if (forget != null) forget.setVisibility(dir != null ? android.view.View.VISIBLE : android.view.View.GONE);
         if (access != null) access.setVisibility(needAccess ? android.view.View.VISIBLE : android.view.View.GONE);
         if (rebuild != null) rebuild.setVisibility(!needAccess && c.state == GameFolder.State.ROMFS_BIN_BROKEN
             && c.hasRomfsDir ? android.view.View.VISIBLE : android.view.View.GONE);
+        // what this screen now shows, from the same object: the log and the screen cannot disagree
+        android.util.Log.i("lasrecomp", "[folder] " + st.summary() + (needAccess ? " (no all-files access)" : "")
+            + " persisted=" + persistedTrees() + " | screen #" + Integer.toHexString(System.identityHashCode(this))
+            + ": play " + (play != null && play.isEnabled() ? "ENABLED" : "disabled"));
+        return st;
     }
 
     /** What the player sees for each state of the folder: what is wrong and what to do. */
@@ -778,6 +863,7 @@ public class LetsGoLauncherActivity extends Activity {
             android.net.Uri uri = data.getData();
             // keep the folder across restarts and app updates (GameDir: preference + persisted permission)
             String path = GameDir.choose(this, uri, data.getFlags());
+            refreshAll();
             if (path == null) {
                 android.widget.Toast.makeText(this, Txt.t("pick_storage1", "Escolha a pasta pelo armazenamento do aparelho ")
                     + Txt.t("pick_storage2", "(armazenamento interno ou cartão SD), não por \"Recentes\" nem por um app de nuvem."),

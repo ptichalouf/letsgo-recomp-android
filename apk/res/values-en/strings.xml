@@ -55,17 +55,17 @@
     <string name="github_fail">"Could not reach GitHub: "</string>
     <string name="github_fail2">"\n\nWithout a network, import a driver .zip with the other button."</string>
     <string name="gpu">"GPU driver (Turnip)"</string>
+    <string name="gyro">"Aim with the gyroscope (tilt the phone)"</string>
     <string name="hint_log">"If the game closes on start, use \"View log\" and send me what it says."</string>
     <string name="import_driver">"Import Turnip driver (.zip)"</string>
     <string name="imported_by_hand">"imported by hand"</string>
-    <string name="in_use">"In use: system driver\n"</string>
-    <string name="in_use_driver">"In use: "</string>
     <string name="installed">"Installed (tap to switch): "</string>
     <string name="installed_ok1">"Driver installed and verified "</string>
     <string name="installed_ok2">"(sha256 checked): "</string>
     <string name="installed_ok3">". It will be tested at the next Play."</string>
     <string name="lang">"Game language:"</string>
     <string name="lang_default">"Default (English / PT-BR translation)"</string>
+    <string name="last_start">"Last game start: "</string>
     <string name="log_empty">"(empty log — open the game once and come back here)"</string>
     <string name="log_loaded">"Log loaded ("</string>
     <string name="log_read_fail">"Could not read the log: "</string>
@@ -110,6 +110,8 @@
     <string name="rules_builtin">"built-in table (GitHub rules unreadable)"</string>
     <string name="rules_github">"auto-drivers.json from github.com/Droid-Deck/Drivers-CI"</string>
     <string name="sel_folder">"Choose the game folder"</string>
+    <string name="selected_driver">"Selected: "</string>
+    <string name="selected_system">"Selected: system driver\n"</string>
     <string name="send_log">"Send log"</string>
     <string name="share">"Share"</string>
     <string name="share_log">"Share log"</string>
@@ -139,6 +141,7 @@
     <string name="st_romfs_dir2">"/). Copy the whole romfs/ folder again."</string>
     <string name="st_unknown">"extracted/exefs/ is not from Pokémon: Let\'s Go, Eevee! or Pikachu!."</string>
     <string name="st_unreadable">"The chosen folder cannot be read."</string>
+    <string name="system_driver">"system driver"</string>
     <string name="tested_next">" (will be tested at the next Play)"</string>
     <string name="then">"\n\nIf the download fails, then: "</string>
     <string name="touch">"On-screen touch controls"</string>

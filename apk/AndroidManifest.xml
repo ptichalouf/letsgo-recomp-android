@@ -28,6 +28,7 @@
         <activity android:name="com.letsgorecomp.LetsGoLauncherActivity"
                   android:label="Let's Go Recomp"
                   android:screenOrientation="landscape"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode"
                   android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

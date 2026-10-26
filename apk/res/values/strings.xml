@@ -55,17 +55,17 @@
     <string name="github_fail">"Não deu para consultar o GitHub: "</string>
     <string name="github_fail2">"\n\nSem rede, importe um .zip de driver pelo outro botão."</string>
     <string name="gpu">"Driver GPU (Turnip)"</string>
+    <string name="gyro">"Mirar com o giroscópio (inclinar o telefone)"</string>
     <string name="hint_log">"Se o jogo fechar ao abrir, use \"Ver log\" e me envie o conteúdo."</string>
     <string name="import_driver">"Importar driver Turnip (.zip)"</string>
     <string name="imported_by_hand">"importado à mão"</string>
-    <string name="in_use">"Em uso: driver do sistema\n"</string>
-    <string name="in_use_driver">"Em uso: "</string>
     <string name="installed">"Instalados (toque para trocar): "</string>
     <string name="installed_ok1">"Driver instalado e verificado "</string>
     <string name="installed_ok2">"(sha256 conferido): "</string>
     <string name="installed_ok3">". Será testado no próximo Jogar."</string>
     <string name="lang">"Idioma do jogo:"</string>
     <string name="lang_default">"Padrão (inglês / tradução PT-BR)"</string>
+    <string name="last_start">"Último início do jogo: "</string>
     <string name="log_empty">"(log vazio — abra o jogo uma vez e volte aqui)"</string>
     <string name="log_loaded">"Log carregado ("</string>
     <string name="log_read_fail">"Falha ao ler o log: "</string>
@@ -110,6 +110,8 @@
     <string name="rules_builtin">"tabela interna (regras do GitHub ilegíveis)"</string>
     <string name="rules_github">"auto-drivers.json de github.com/Droid-Deck/Drivers-CI"</string>
     <string name="sel_folder">"Escolher a pasta do jogo"</string>
+    <string name="selected_driver">"Selecionado: "</string>
+    <string name="selected_system">"Selecionado: driver do sistema\n"</string>
     <string name="send_log">"Enviar log"</string>
     <string name="share">"Compartilhar"</string>
     <string name="share_log">"Compartilhar log"</string>
@@ -139,6 +141,7 @@
     <string name="st_romfs_dir2">"/). Copie a pasta romfs/ inteira de novo."</string>
     <string name="st_unknown">"extracted/exefs/ não é de Pokémon: Let\'s Go, Eevee! nem Pikachu!."</string>
     <string name="st_unreadable">"A pasta escolhida não pode ser lida."</string>
+    <string name="system_driver">"driver do sistema"</string>
     <string name="tested_next">" (será testado no próximo Jogar)"</string>
     <string name="then">"\n\nSe o download falhar, depois: "</string>
     <string name="touch">"Controles touch na tela"</string>

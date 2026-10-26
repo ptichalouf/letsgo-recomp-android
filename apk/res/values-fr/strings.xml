@@ -55,17 +55,17 @@
     <string name="github_fail">"Impossible de consulter GitHub : "</string>
     <string name="github_fail2">"\n\nSans réseau, importe un .zip de pilote avec l\'autre bouton."</string>
     <string name="gpu">"Pilote graphique (Turnip)"</string>
+    <string name="gyro">"Viser avec le gyroscope (incliner le téléphone)"</string>
     <string name="hint_log">"Si le jeu se ferme au démarrage, utilise « Voir le journal » et envoie-moi ce qu\'il indique."</string>
     <string name="import_driver">"Importer un pilote Turnip (.zip)"</string>
     <string name="imported_by_hand">"importé à la main"</string>
-    <string name="in_use">"Utilisé : pilote du système\n"</string>
-    <string name="in_use_driver">"Utilisé : "</string>
     <string name="installed">"Installés (touche pour changer) : "</string>
     <string name="installed_ok1">"Pilote installé et vérifié "</string>
     <string name="installed_ok2">"(sha256 contrôlé) : "</string>
     <string name="installed_ok3">". Il sera testé au prochain « Jouer »."</string>
     <string name="lang">"Langue du jeu :"</string>
     <string name="lang_default">"Par défaut (anglais / traduction brésilienne)"</string>
+    <string name="last_start">"Dernier démarrage du jeu : "</string>
     <string name="log_empty">"(journal vide — ouvre le jeu une fois et reviens ici)"</string>
     <string name="log_loaded">"Journal chargé ("</string>
     <string name="log_read_fail">"Impossible de lire le journal : "</string>
@@ -110,6 +110,8 @@
     <string name="rules_builtin">"table interne (règles GitHub illisibles)"</string>
     <string name="rules_github">"auto-drivers.json de github.com/Droid-Deck/Drivers-CI"</string>
     <string name="sel_folder">"Choisir le dossier du jeu"</string>
+    <string name="selected_driver">"Sélectionné : "</string>
+    <string name="selected_system">"Sélectionné : pilote du système\n"</string>
     <string name="send_log">"Envoyer le journal"</string>
     <string name="share">"Partager"</string>
     <string name="share_log">"Partager le journal"</string>
@@ -139,6 +141,7 @@
     <string name="st_romfs_dir2">"/). Copie à nouveau tout le dossier romfs/."</string>
     <string name="st_unknown">"extracted/exefs/ n\'est pas celui de Pokémon : Let\'s Go, Évoli ! ni Pikachu !."</string>
     <string name="st_unreadable">"Le dossier choisi ne peut pas être lu."</string>
+    <string name="system_driver">"pilote du système"</string>
     <string name="tested_next">" (sera testé au prochain « Jouer »)"</string>
     <string name="then">"\n\nSi le téléchargement échoue, ensuite : "</string>
     <string name="touch">"Commandes tactiles à l\'écran"</string>

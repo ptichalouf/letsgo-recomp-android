@@ -120,8 +120,46 @@ final class GpuDrivers {
     }
 
     /** All installed drivers whose .so is present, in no particular order. */
+    /** The installed drivers, one per package: folders holding the same library (same sha256) are shown once.
+     *  Earlier versions installed the same package again under a new folder (turnip-gen8-v38, -2, -3...) because
+     *  they kept no library hash; the copy kept is the selected one, else the one that already started the game. */
     static List<Driver> list(Context c) {
-        return list(driversDir(c));
+        List<Driver> all = list(driversDir(c));
+        String sel = prefs(c).getString(KEY_DRIVER, null);
+        java.util.Map<String, Driver> bySha = new java.util.LinkedHashMap<>();
+        for (Driver d : all) {
+            String k = libSha(new File(driversDir(c), d.slug), d.libraryName);
+            if (k.isEmpty()) k = "slug:" + d.slug;
+            Driver kept = bySha.get(k);
+            if (kept == null || better(d, kept, sel)) bySha.put(k, d);
+        }
+        if (bySha.size() != all.size())
+            Log.i("lasrecomp", "[gpu] " + all.size() + " driver folders, " + bySha.size() + " distinct packages");
+        return new ArrayList<>(bySha.values());
+    }
+
+    private static boolean better(Driver d, Driver kept, String sel) {
+        if (d.slug.equals(sel) != kept.slug.equals(sel)) return d.slug.equals(sel);
+        if (d.started != kept.started) return d.started;
+        return d.slug.length() < kept.slug.length() || d.slug.length() == kept.slug.length() && d.slug.compareTo(kept.slug) < 0;
+    }
+
+    /** sha256 of a driver folder's library: .libsha256, written here once when an older install did not. */
+    static String libSha(File dir, String libraryName) {
+        File f = new File(dir, ".libsha256");
+        String h = readText(f).trim();
+        if (!h.isEmpty()) return h;
+        try (InputStream in = new FileInputStream(new File(dir, libraryName))) {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] b = new byte[65536];
+            int r;
+            while ((r = in.read(b)) > 0) md.update(b, 0, r);
+            h = DriverCatalog.hex(md.digest());
+            try { write(f, h.getBytes("UTF-8")); } catch (IOException ignored) { }
+            return h;
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     static List<Driver> list(File driversDir) {
@@ -147,6 +185,18 @@ final class GpuDrivers {
         if (d == null) return null;  // stale selection: the folder is gone
         if (!d.libraryName.equals(prefs(c).getString(KEY_LIB, null))) return null;
         return d;
+    }
+
+    static final String KEY_LAST_LAUNCH = "gpu_last_launch";
+
+    /** What the game was really handed at its last start (LetsGoActivity): the driver's library path, or "" for the
+     *  system driver. The runtime loads exactly that file or stops (device.c load_gipa), never another one. */
+    static void recordLaunch(Context c, String soPath) {
+        prefs(c).edit().putString(KEY_LAST_LAUNCH, soPath == null ? "" : soPath).commit();
+    }
+
+    static String lastLaunch(Context c) {
+        return prefs(c).getString(KEY_LAST_LAUNCH, null);
     }
 
     /** Select a driver, or null for the system driver. */
@@ -339,7 +389,7 @@ final class GpuDrivers {
             // The same library already installed: reuse it (its trial history stays).
             for (Driver d : list(driversDir)) {
                 if (d.source != null && libSha.equals(d.source.optString("libSha256"))
-                        || libSha.equals(readText(new File(new File(driversDir, d.slug), ".libsha256")).trim()))
+                        || libSha.equals(libSha(new File(driversDir, d.slug), d.libraryName)))
                     return new ImportResult(d, null);
             }
             String slug = slug(meta.optString("name", libraryName));

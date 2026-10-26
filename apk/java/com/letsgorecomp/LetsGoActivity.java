@@ -97,9 +97,11 @@ public class LetsGoActivity extends SDLActivity {
                         getApplicationInfo().nativeLibraryDir, true);
                 android.util.Log.i("lasrecomp", "[gpu] custom driver: " + so.getAbsolutePath()
                         + (so.isFile() ? "" : " (MISSING)"));
+                GpuDrivers.recordLaunch(this, so.getAbsolutePath());
             } else {
                 android.system.Os.unsetenv("LARECOMP_GPU_DRIVER");
                 android.util.Log.i("lasrecomp", "[gpu] system driver (no custom driver selected)");
+                GpuDrivers.recordLaunch(this, null);
             }
         } catch (Exception e) {
             android.util.Log.w("lasrecomp", "[gpu] driver setup: " + e);
@@ -107,8 +109,10 @@ public class LetsGoActivity extends SDLActivity {
         System.loadLibrary("lasrecomp");
         // The user-picked game folder (via the launcher), or the app's files
         // dir as a fallback. The native runtime reads LARECOMP_DATA_ROOT.
-        String gameDir = LetsGoLauncherActivity.gameDir(this);
-        if (gameDir == null) gameDir = getFilesDir().getAbsolutePath();
+        // The same object the launcher's screen and Play button come from (LetsGoLauncherActivity.Launch).
+        LetsGoLauncherActivity.Launch st = LetsGoLauncherActivity.launch(this);
+        String gameDir = st.dataRoot;
+        android.util.Log.i("lasrecomp", "[folder] game start: " + st.summary());
         // Copy bundled DejaVuSans.ttf to the game folder for the system font.
         // Diagnosed copy: logs success/failure, validates size, cleans up partial files.
         try {
