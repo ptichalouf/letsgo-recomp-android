@@ -45,32 +45,30 @@ public class LetsGoActivity extends SDLActivity {
         } catch (Exception e) {
             android.util.Log.w("lasrecomp", "[text] vflip setup: " + e);
         }
-        // v0069: dump de GLSL ativado por padrão para diagnóstico do shader de texto
+        // Sondas de diagnóstico do texto: DESLIGADAS por padrão. Elas pintam o texto de magenta,
+        // forçam quads e inundam o log ([gcopy]/[gcopy-diag]), o que deixa o diálogo ilegível e
+        // o jogo lento. Um único interruptor as liga todas: `adb shell setprop debug.larecomp.diag 1`
+        // (ou LARECOMP_DIAG=1 no ambiente), e só vale para o próximo lançamento do jogo.
+        boolean diag = false;
         try {
-            android.system.Os.setenv("LARECOMP_DUMP_FONT_GLSL", "1", true);
-            android.util.Log.i("lasrecomp", "[shader] GLSL dump ENABLED (v0069 diagnostic)");
-        } catch (Exception e) {
-            android.util.Log.w("lasrecomp", "[shader] glsl dump setup: " + e);
+            String dflt = System.getenv("LARECOMP_DIAG") == null ? "0" : System.getenv("LARECOMP_DIAG");
+            Object v = Class.forName("android.os.SystemProperties")
+                .getMethod("get", String.class, String.class)
+                .invoke(null, "debug.larecomp.diag", dflt);
+            diag = "1".equals(String.valueOf(v).trim());
+        } catch (Throwable ignored) { }
+        String[] probes = {"LARECOMP_DUMP_FONT_GLSL", "LARECOMP_TEXT_DIAG", "LARECOMP_VS_RANGE_DIAG",
+                           "LARECOMP_GCOPY_DIAG"};
+        for (String k : probes) {
+            try {
+                if (diag) android.system.Os.setenv(k, "1", true);
+                else android.system.Os.unsetenv(k);
+            } catch (Exception e) {
+                android.util.Log.w("lasrecomp", "[diag] " + k + ": " + e);
+            }
         }
-        // v0071 ETAPA 3: modo diagnóstico magenta para shaders de texto
-        // 1 = magenta opaco sem discard | 2 = magenta com discard | 0 = desligado
-        try {
-            android.system.Os.setenv("LARECOMP_TEXT_DIAG", "1", true);
-            android.util.Log.i("lasrecomp", "[shader] TEXT_DIAG mode 1 ENABLED (v0071: magenta, no discard)");
-        } catch (Exception e) {
-            android.util.Log.w("lasrecomp", "[shader] text diag setup: " + e);
-        }
-        // v0090 VS_RANGE_DIAG: override CONDICIONAL do gl_Position do diálogo
-        // (só força o quad centrado se o gl_Position calculado estiver fora
-        // do clip range). Quads magenta centrados = VS emite fora do range
-        // (diverge da simulação); nada = VS emite dentro do range e o
-        // problema é downstream do VS. Gated, inerte sem a env.
-        try {
-            android.system.Os.setenv("LARECOMP_VS_RANGE_DIAG", "1", true);
-            android.util.Log.i("lasrecomp", "[shader] VS_RANGE_DIAG ENABLED (v0090: conditional quad)");
-        } catch (Exception e) {
-            android.util.Log.w("lasrecomp", "[shader] vs range diag setup: " + e);
-        }
+        android.util.Log.i("lasrecomp", "[diag] text diagnostics " + (diag ? "ON" : "OFF")
+                + " (debug.larecomp.diag=" + (diag ? "1" : "0") + ")");
         // v0088: VS_DIAG DESATIVADO — o quad forçado da v0087 mascararia o fix
         // real (A0_FIX em exec.c). O código VS_DIAG permanece no runtime, gated
         // pela env, mas sem ela setada fica inerte. TEXT_DIAG continua ativo:

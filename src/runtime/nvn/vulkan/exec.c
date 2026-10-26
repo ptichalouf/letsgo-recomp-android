@@ -2433,8 +2433,13 @@ static void gcopy_prepare(unsigned stage_mask) {
     // so gcopy should NOT run for it; the flag confirms that (or reveals it does).
     extern uint64_t g_text_fshash;
     static int logged = 0;
+    // Diagnostic logging of the text path ([gcopy] per text draw, [gcopy-diag]): off unless
+    // LARECOMP_GCOPY_DIAG is set (LetsGoActivity sets it only when debug.larecomp.diag=1).
+    // Left on, it writes ~40 lines/s in dialogs and costs frame rate.
+    static int gc_diag = -1;
+    if (gc_diag < 0) gc_diag = getenv("LARECOMP_GCOPY_DIAG") != NULL;
     int is_text = (g_text_fshash == 0x6443b63b341c73caULL || g_text_fshash == 0x7270eb69fbeccceeULL);
-    if (!logged || is_text) {
+    if (!logged || (is_text && gc_diag)) {
         if (!logged) logged = 1;
         LOG("[gcopy] %d ranges %.1f KB copied to GPU buffer (no heap import)%s\n", m, total / 1024.0,
             is_text ? " [TEXT]" : "");
@@ -2445,7 +2450,7 @@ static void gcopy_prepare(unsigned stage_mask) {
     // produce zero fragments. The only unverified link is runtime DATA: does
     // the gfast window hold real glyph data or zeros, and does the gmap table
     // cover the VS read addresses? Log both, straight from the copied window.
-    if (g_text_fshash == 0x6443b63b341c73caULL) {
+    if (gc_diag && g_text_fshash == 0x6443b63b341c73caULL) {
         static int diag_n = 0;
         if (diag_n < 5) {
             diag_n++;
@@ -2506,7 +2511,7 @@ static void gcopy_prepare(unsigned stage_mask) {
         // copy is racing the game's write.
         {
             static int diag_all = 0;
-            if ((++diag_all % 200) == 0 && gc_span.ptr && gc_size >= 32) {
+            if (gc_diag && (++diag_all % 200) == 0 && gc_span.ptr && gc_size >= 32) {
                 const uint32_t *w = (const uint32_t *)gc_span.ptr;
                 uint64_t sb = st.sbuf[0][0].addr - HEAP_BASE;
                 for (int i = 0; i < m; i++) {
