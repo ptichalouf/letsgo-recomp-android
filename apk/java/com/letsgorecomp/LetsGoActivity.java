@@ -83,7 +83,12 @@ public class LetsGoActivity extends SDLActivity {
         // driver selected for an earlier launch keeps running while the launcher shows
         // "system driver". A selected driver whose .so is missing is still passed on:
         // the runtime then stops with a message instead of drawing with another driver.
+        // A driver that has not yet started the game on this phone goes on trial here, before the runtime loads:
+        // the runtime marks it .started after its first frames, or .start_failed when it refuses it, and the
+        // launcher rolls back a trial that ended without .started (GpuDrivers.checkTrial).
+        running = true;
         try {
+            GpuDrivers.beginLaunch(this);
             GpuDrivers.Driver drv = GpuDrivers.selected(this);
             if (drv != null) {
                 java.io.File so = new java.io.File(
@@ -185,6 +190,16 @@ public class LetsGoActivity extends SDLActivity {
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         }
+    }
+
+    /** The game activity is alive in this process (a driver trial is then still running, not failed). */
+    static volatile boolean running;
+
+    @Override
+    protected void onDestroy() {
+        running = false;
+        GpuDrivers.gameClosed(this);
+        super.onDestroy();
     }
 
     @Override

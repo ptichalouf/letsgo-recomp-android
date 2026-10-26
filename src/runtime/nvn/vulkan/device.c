@@ -45,6 +45,29 @@ static PFN_vkGetInstanceProcAddr g_gipa;  // the loader's vkGetInstanceProcAddr 
 // the system driver silently is worse than stopping: the game then runs (or fails) on a driver the launcher does
 // not show, and its symptoms (missing text without VK_EXT_external_memory_host, no Vulkan 1.3) get blamed on the
 // wrong cause.
+//
+// The launcher keeps a driver "on trial" until it has brought the game to its first frames on this phone. The verdict
+// is a file next to the driver's .so: .started (after 120 presented frames) or .start_failed (the reason, written
+// here before stopping). A trial that ends with neither (a crash inside the driver) is rolled back by the launcher too.
+static void driver_mark(const char *file, const char *text) {
+    const char *drv = getenv("LARECOMP_GPU_DRIVER");
+    const char *slash = drv ? strrchr(drv, '/') : NULL;
+    if (!slash || slash == drv) return;
+    char path[600];
+    if (snprintf(path, sizeof path, "%.*s/%s", (int)(slash - drv), drv, file) >= (int)sizeof path) return;
+    FILE *f = fopen(path, "w");
+    if (!f) { LOG("[vk] cannot write %s: %s\n", path, strerror(errno)); return; }
+    fputs(text, f);
+    fclose(f);
+}
+
+static void vk_driver_started(void) {
+    const char *drv = getenv("LARECOMP_GPU_DRIVER");
+    if (!drv || !*drv) return;
+    driver_mark(".started", "120 frames presented\n");
+    LOG("[vk] custom GPU driver started the game (120 frames): %s\n", drv);
+}
+
 static void __attribute__((noreturn, format(printf, 1, 2))) driver_refused(const char *fmt, ...) {
     char msg[1024];
     va_list ap;
@@ -52,6 +75,7 @@ static void __attribute__((noreturn, format(printf, 1, 2))) driver_refused(const
     vsnprintf(msg, sizeof msg, fmt, ap);
     va_end(ap);
     LOG("FATAL: [vk] %s\n", msg);
+    driver_mark(".start_failed", msg);
     fflush(stderr);
     SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Let's Go Recomp - GPU driver", msg, NULL);
     _exit(1);
@@ -1333,6 +1357,7 @@ void backend_present(NvnTexture *t) {
     frames++;
     total_frames++;
     g_frame_counter++;
+    if (total_frames == 120) vk_driver_started();
     {   // Opt-in game-present intervals (not the extra menu image shown by the 60 fps mode).
         static FILE *csv;
         static uint64_t previous;
