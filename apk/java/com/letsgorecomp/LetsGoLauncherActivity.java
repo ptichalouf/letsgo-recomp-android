@@ -24,29 +24,30 @@ public class LetsGoLauncherActivity extends Activity {
     private static final int REQ_IMPORT_DIR_FOLDER = 1003;
     private static final int REQ_IMPORT_DRIVER = 1004;
     private static final String PREFS = "letsgo";
-    private static final String KEY_GAME_DIR = "game_dir";
     private TextView status;
+    private Button play, pick, forget, access, rebuild;
     private android.os.Handler importPoller;
     private Runnable importPollTask;
 
-    /** The user-picked game folder, or null if not set. */
+    /** The user-picked game folder, or null if not set (GameDir: kept across app updates). */
     public static String gameDir(android.content.Context ctx) {
-        return ctx.getSharedPreferences(PREFS, MODE_PRIVATE)
-                  .getString(KEY_GAME_DIR, null);
+        return GameDir.path(ctx);
     }
 
-    /** True only when a COMPLETE import exists: the .import_ok marker (written
-     *  by LetsGoImportJob on 100%) or a generated romfs.bin. A bare romfs/
-     *  folder is NOT enough — an interrupted import also leaves a folder behind. */
-    public static boolean gameDataReady(android.content.Context ctx) {
-        File gameLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "liblasgame.so");
+    /** The game folder's state (GameFolder.inspect): the chosen folder, or the app's own files when an in-app
+     *  import wrote there. */
+    static GameFolder.Check gameFolder(android.content.Context ctx) {
         String dir = gameDir(ctx);
         File base = dir != null ? new File(dir) : ctx.getFilesDir();
-        File dataBin = new File(base, "extracted/romfs.bin");
-        File importOk = new File(base, "extracted/.import_ok");
-        File exefsMain = new File(base, "extracted/exefs/main");
-        return gameLib.exists() && exefsMain.exists()
-                && (dataBin.exists() || importOk.exists());
+        if (dir == null && !new File(base, "extracted").isDirectory()) return GameFolder.inspect(null);
+        return GameFolder.inspect(base);
+    }
+
+    /** True only when the game can start: the game code in the APK, all-files access to the folder, and a
+     *  complete game folder (GameFolder: exefs of Let's Go, and a whole romfs.bin or the romfs/ folder). */
+    public static boolean gameDataReady(android.content.Context ctx) {
+        File gameLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "liblasgame.so");
+        return gameLib.exists() && !GameDir.needsAllFilesAccess(ctx, gameDir(ctx)) && gameFolder(ctx).playable();
     }
 
     @Override
@@ -85,9 +86,8 @@ public class LetsGoLauncherActivity extends Activity {
         status.setGravity(Gravity.CENTER);
         status.setPadding(0, dp(12), 0, dp(24));
         root.addView(status, lp(-1, -2));
-        refreshStatus();
 
-        Button play = new Button(this);
+        play = new Button(this);
         play.setText("Jogar");
         play.setTextSize(18);
         play.setOnClickListener(new android.view.View.OnClickListener() {
@@ -103,8 +103,9 @@ public class LetsGoLauncherActivity extends Activity {
                 // Never launch into a native crash: without complete game data
                 // the runtime FATALs (see main.c boot()). Tell the user instead.
                 if (!gameDataReady(LetsGoLauncherActivity.this)) {
+                    refreshStatus();
                     android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                        "O jogo ainda não foi importado por completo: toque em \"Importar jogo do NSP\" e aguarde chegar a 100%.",
+                        "O jogo ainda não está pronto: veja o estado da pasta acima.",
                         android.widget.Toast.LENGTH_LONG).show();
                     return;
                 }
@@ -114,17 +115,44 @@ public class LetsGoLauncherActivity extends Activity {
         });
         root.addView(play, lp(-1, -2));
 
-        Button pick = new Button(this);
-        pick.setText("Selecionar pasta do jogo");
+        pick = new Button(this);
+        pick.setText("Escolher a pasta do jogo");
         pick.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override public void onClick(android.view.View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                startActivityForResult(i, REQ_GAME_DIR);
-            }
+            @Override public void onClick(android.view.View v) { pickGameDir(); }
         });
         LinearLayout.LayoutParams plp = lp(-1, -2);
         plp.topMargin = dp(12);
         root.addView(pick, plp);
+
+        // All-files access: the runtime opens the game folder by path (fopen), the folder picker alone is not enough.
+        access = new Button(this);
+        access.setText("Permitir acesso a todos os arquivos");
+        access.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) { requestAllFilesAccess(); }
+        });
+        root.addView(access, lp(-1, -2));
+
+        // A romfs.bin cut short (the first boot builds it from romfs/; stopping it midway leaves a short file that
+        // the runtime would take as done): remove it so the next boot builds it again. Only offered with romfs/.
+        rebuild = new Button(this);
+        rebuild.setText("Refazer romfs.bin a partir de romfs/");
+        rebuild.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) { confirmRebuild(); }
+        });
+        root.addView(rebuild, lp(-1, -2));
+
+        // Reversible: forget the folder (preference + persisted permission); the files stay where they are.
+        forget = new Button(this);
+        forget.setText("Esquecer esta pasta");
+        forget.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                GameDir.forget(LetsGoLauncherActivity.this);
+                refreshStatus();
+                android.widget.Toast.makeText(LetsGoLauncherActivity.this,
+                    "Pasta esquecida. Os arquivos não foram apagados.", android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+        root.addView(forget, lp(-1, -2));
 
         Button importBtn = new Button(this);
         importBtn.setText("Importar jogo do NSP");
@@ -380,25 +408,159 @@ public class LetsGoLauncherActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.addView(root);
         setContentView(scroll);
+        refreshStatus();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // the state can change outside the app: files copied, all-files access granted in Settings, card removed
+        refreshStatus();
+    }
+
+    /** The system folder picker, opened on the current folder when there is one. */
+    private void pickGameDir() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        android.net.Uri cur = GameDir.uri(this);
+        if (cur != null && android.os.Build.VERSION.SDK_INT >= 26) {
+            try {
+                i.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+                    android.provider.DocumentsContract.buildDocumentUriUsingTree(cur,
+                        android.provider.DocumentsContract.getTreeDocumentId(cur)));
+            } catch (RuntimeException ignored) {}
+        }
+        try {
+            startActivityForResult(i, REQ_GAME_DIR);
+        } catch (android.content.ActivityNotFoundException e) {
+            android.widget.Toast.makeText(this, "Este aparelho não tem seletor de pastas.",
+                android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void requestAllFilesAccess() {
+        if (android.os.Build.VERSION.SDK_INT < 30) return;
+        try {
+            startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                android.net.Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+        }
+    }
+
+    private void confirmRebuild() {
+        final GameFolder.Check c = gameFolder(this);
+        if (c.state != GameFolder.State.ROMFS_BIN_BROKEN || !c.hasRomfsDir) { refreshStatus(); return; }
+        final File bin = new File(c.root, "extracted/romfs.bin");
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Refazer romfs.bin")
+            .setMessage("romfs.bin está incompleto (" + mib(c.romfsBinBytes) + " de " + mib(c.romfsBinNeeded)
+                + "). Ele será apagado e refeito a partir da pasta romfs/ ao abrir o jogo (alguns minutos). "
+                + "A pasta romfs/ e o resto não são tocados.")
+            .setPositiveButton("Apagar e refazer", new android.content.DialogInterface.OnClickListener() {
+                @Override public void onClick(android.content.DialogInterface d, int w) {
+                    boolean ok = bin.delete();
+                    android.util.Log.i("lasrecomp", "[folder] removed short romfs.bin (" + c.romfsBinBytes + " of "
+                        + c.romfsBinNeeded + " bytes): " + ok);
+                    refreshStatus();
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private static String mib(long b) {
+        return String.format(java.util.Locale.ROOT, "%.0f MiB", b / 1048576.0);
     }
 
     private void refreshStatus() {
+        if (status == null) return;
         // If an import is running, the poller owns the status line.
         LetsGoImportJob job = LetsGoImportJob.current();
         if (job != null && !job.finished) { startImportPolling(); return; }
-        File gameLib = new File(getApplicationInfo().nativeLibraryDir, "liblasgame.so");
         String dir = gameDir(this);
-        File base = dir != null ? new File(dir) : getFilesDir();
-        File dataRoot = new File(base, "extracted/romfs");
-        File dataRootAlt = new File(base, "romfs");
-        boolean romfsOk = dataRoot.exists() || dataRootAlt.exists();
-        if (gameLib.exists() && romfsOk) {
-            status.setText("Jogo pronto para iniciar.\nPasta: " + (dir != null ? dir : "(interna)"));
-        } else if (dir != null) {
-            status.setText("Pasta selecionada, mas romfs não encontrado nela.\n" + dir);
+        GameFolder.Check c = gameFolder(this);
+        boolean needAccess = GameDir.needsAllFilesAccess(this, dir);
+        boolean gameLib = new File(getApplicationInfo().nativeLibraryDir, "liblasgame.so").exists();
+        String where = dir != null ? "Pasta: " + dir : "";
+        String text;
+        if (needAccess) {
+            text = "O app precisa do acesso a todos os arquivos para ler a pasta do jogo.\n" + where;
         } else {
-            status.setText("Selecione a pasta do jogo (com extracted/romfs dentro).");
+            text = describe(c) + (where.isEmpty() ? "" : "\n" + where);
         }
+        if (!gameLib) text += "\nEste APK não tem o código do jogo (liblasgame.so).";
+        status.setText(text);
+        boolean ready = gameLib && !needAccess && c.playable();
+        android.util.Log.i("lasrecomp", "[folder] state " + c.state + (needAccess ? " (no all-files access)" : "")
+            + " dir=" + dir + " persisted=" + persistedTrees());
+        if (play != null) {
+            play.setEnabled(ready);
+            play.setAlpha(ready ? 1f : 0.4f);
+        }
+        if (pick != null) pick.setText(dir == null ? "Escolher a pasta do jogo" : "Escolher outra pasta");
+        if (forget != null) forget.setVisibility(dir != null ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (access != null) access.setVisibility(needAccess ? android.view.View.VISIBLE : android.view.View.GONE);
+        if (rebuild != null) rebuild.setVisibility(!needAccess && c.state == GameFolder.State.ROMFS_BIN_BROKEN
+            && c.hasRomfsDir ? android.view.View.VISIBLE : android.view.View.GONE);
+    }
+
+    /** What the player sees for each state of the folder: what is wrong and what to do. */
+    static String describe(GameFolder.Check c) {
+        switch (c.state) {
+            case NOT_SET:
+                return "Escolha a pasta do jogo já extraído: a pasta que contém extracted/exefs/ e "
+                    + "extracted/romfs/ (ou extracted/romfs.bin).";
+            case MISSING:
+                return "A pasta escolhida não existe mais (movida, renomeada ou cartão retirado). "
+                    + "Escolha-a de novo.";
+            case UNREADABLE:
+                return "A pasta escolhida não pode ser lida.";
+            case NO_EXTRACTED:
+                return "Esta pasta não tem extracted/. Escolha a pasta que contém extracted/exefs/ e "
+                    + "extracted/romfs/.";
+            case LOOSE:
+                return "exefs/ e romfs/ estão direto nesta pasta: coloque-os numa subpasta chamada extracted/ "
+                    + "(extracted/exefs/, extracted/romfs/) e escolha esta pasta de novo.";
+            case NO_EXEFS:
+                return "extracted/exefs/ está incompleto: faltam main e main.npdm (ou main não é um NSO).";
+            case UNKNOWN_GAME:
+                return "extracted/exefs/ não é de Pokémon: Let's Go, Eevee! nem Pikachu!.";
+            case IMPORT_PARTIAL:
+                return "Uma importação foi interrompida nesta pasta (.import/ sem .import_ok): os arquivos "
+                    + "podem estar incompletos.";
+            case NO_ROMFS:
+                return (c.game != null ? c.game + ": " : "") + "falta a RomFS. Copie extracted/romfs/ "
+                    + "(com bin/message dentro) ou extracted/romfs.bin.";
+            case ROMFS_DIR_INCOMPLETE:
+                return (c.game != null ? c.game + ": " : "") + "extracted/romfs/ está incompleto (falta "
+                    + c.romfsMissing + "/). Copie a pasta romfs/ inteira de novo.";
+            case ROMFS_BIN_BROKEN:
+                return (c.game != null ? c.game + ": " : "") + "extracted/romfs.bin está incompleto ("
+                    + mib(Math.max(0, c.romfsBinBytes)) + (c.romfsBinNeeded > 0 ? " de " + mib(c.romfsBinNeeded) : "")
+                    + "). " + (c.hasRomfsDir ? "Ele pode ser refeito a partir de romfs/."
+                    : "Copie-o de novo.");
+            case READ_ONLY:
+                return "A pasta não pode ser gravada (saves, configurações, cache). Escolha uma pasta do "
+                    + "armazenamento interno.";
+            case READY:
+                return "Jogo pronto para iniciar: " + c.game + ".";
+            case READY_FIRST_RUN:
+                return "Jogo pronto: " + c.game + ". Na primeira abertura, romfs.bin é montado a partir de "
+                    + "romfs/ (alguns minutos, ~4,5 GB livres).";
+        }
+        return String.valueOf(c.state);
+    }
+
+    private String persistedTrees() {
+        StringBuilder b = new StringBuilder("[");
+        try {
+            for (android.content.UriPermission up : getContentResolver().getPersistedUriPermissions())
+                b.append(b.length() > 1 ? ", " : "").append(GameDir.pathOf(up.getUri()))
+                 .append(up.isWritePermission() ? " rw" : " r");
+        } catch (RuntimeException ignored) {}
+        return b.append("]").toString();
     }
 
     @Override
@@ -407,17 +569,16 @@ public class LetsGoLauncherActivity extends Activity {
         if (req == REQ_GAME_DIR && res == RESULT_OK && data != null
                 && data.getData() != null) {
             android.net.Uri uri = data.getData();
-            // keep access across restarts
-            try {
-                getContentResolver().takePersistableUriPermission(uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (Exception ignored) {}
-            String path = resolvePath(uri);
-            if (path != null) {
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                    .putString(KEY_GAME_DIR, path).apply();
+            // keep the folder across restarts and app updates (GameDir: preference + persisted permission)
+            String path = GameDir.choose(this, uri, data.getFlags());
+            if (path == null) {
+                android.widget.Toast.makeText(this, "Escolha a pasta pelo armazenamento do aparelho "
+                    + "(armazenamento interno ou cartão SD), não por \"Recentes\" nem por um app de nuvem.",
+                    android.widget.Toast.LENGTH_LONG).show();
             }
             refreshStatus();
+            if (path != null && !gameDataReady(this))
+                android.widget.Toast.makeText(this, status.getText(), android.widget.Toast.LENGTH_LONG).show();
         } else if ((req == REQ_IMPORT_DIR || req == REQ_IMPORT_DIR_FOLDER) && res == RESULT_OK
                 && data != null && data.getData() != null) {
             android.widget.Toast.makeText(this, "Pasta escolhida, iniciando...",
@@ -482,17 +643,6 @@ public class LetsGoLauncherActivity extends Activity {
             }
         };
         importPoller.post(importPollTask);
-    }
-
-    /** Resolve a SAF tree URI to a filesystem path (primary storage only). */
-    private String resolvePath(android.net.Uri uri) {
-        try {
-            String docId = android.provider.DocumentsContract.getTreeDocumentId(uri);
-            if (docId != null && docId.startsWith("primary:")) {
-                return "/storage/emulated/0/" + docId.substring("primary:".length());
-            }
-        } catch (Exception ignored) {}
-        return null;
     }
 
     private int dp(int v) {
