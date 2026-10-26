@@ -24,6 +24,7 @@ public class LogActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Txt.init(this);  // the phone's language for every word shown (res/values-en, values-fr; PT by default)
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -35,7 +36,7 @@ public class LogActivity extends Activity {
         bar.setPadding(dp(12), dp(12), dp(12), dp(12));
 
         TextView title = new TextView(this);
-        title.setText("Log do app");
+        title.setText(Txt.t("log_title", "Log do app"));
         title.setTextSize(18);
         title.setTextColor(Color.WHITE);
         LinearLayout.LayoutParams tlp =
@@ -43,19 +44,19 @@ public class LogActivity extends Activity {
         bar.addView(title, tlp);
 
         Button share = new Button(this);
-        share.setText("Compartilhar");
+        share.setText(Txt.t("share", "Compartilhar"));
         share.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 Intent i = new Intent(Intent.ACTION_SEND);
                 i.setType("text/plain");
                 i.putExtra(Intent.EXTRA_TEXT, view.getText().toString());
-                startActivity(Intent.createChooser(i, "Enviar log"));
+                startActivity(Intent.createChooser(i, Txt.t("send_log", "Enviar log")));
             }
         });
         bar.addView(share, new LinearLayout.LayoutParams(-2, -2));
 
         Button export = new Button(this);
-        export.setText("Exportar");
+        export.setText(Txt.t("export", "Exportar"));
         export.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 try {
@@ -66,11 +67,11 @@ public class LogActivity extends Activity {
                     w.write(view.getText().toString());
                     w.close();
                     Toast.makeText(LogActivity.this,
-                        "Log salvo em Downloads/letsgo-log.txt",
+                        Txt.t("log_saved", "Log salvo em Downloads/letsgo-log.txt"),
                         Toast.LENGTH_LONG).show();
                 } catch (Exception e) {
                     Toast.makeText(LogActivity.this,
-                        "Falha ao exportar: " + e.getMessage(),
+                        Txt.t("export_fail", "Falha ao exportar: ") + e.getMessage(),
                         Toast.LENGTH_LONG).show();
                 }
             }
@@ -78,7 +79,7 @@ public class LogActivity extends Activity {
         bar.addView(export, new LinearLayout.LayoutParams(-2, -2));
 
         Button refresh = new Button(this);
-        refresh.setText("Atualizar");
+        refresh.setText(Txt.t("refresh", "Atualizar"));
         refresh.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { load(); }
         });
@@ -119,17 +120,17 @@ public class LogActivity extends Activity {
                 }
                 r.close();
             } catch (Exception e) {
-                sb.append("Falha ao ler o log: ").append(e.getMessage());
+                sb.append(Txt.t("log_read_fail", "Falha ao ler o log: ")).append(e.getMessage());
             }
             final String text = sb.length() == 0
-                ? "(log vazio — abra o jogo uma vez e volte aqui)"
+                ? Txt.t("log_empty", "(log vazio — abra o jogo uma vez e volte aqui)")
                 : sb.toString();
             final int len = text.length();
             runOnUiThread(new Runnable() {
                 @Override public void run() {
                     view.setText(text);
                     Toast.makeText(LogActivity.this,
-                        "Log carregado (" + len + " chars)",
+                        Txt.t("log_loaded", "Log carregado (") + len + " chars)",
                         Toast.LENGTH_SHORT).show();
                 }
             });

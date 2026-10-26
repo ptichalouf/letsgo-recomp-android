@@ -25,6 +25,7 @@ public class LetsGoActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Txt.init(this);  // the phone's language for every word shown (res/values-en, values-fr; PT by default)
         // Force landscape: locked (not sensor) to avoid SDL resize confusion
         setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         // Resolution scale (user-selectable, emulator-style): set before native loads

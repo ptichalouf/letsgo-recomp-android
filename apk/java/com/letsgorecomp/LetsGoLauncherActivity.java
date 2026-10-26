@@ -54,6 +54,7 @@ public class LetsGoLauncherActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Txt.init(this);  // the phone's language for every word shown (res/values-en, values-fr; PT by default)
 
         // Request full storage access (needed for direct fopen() of game files)
         if (android.os.Build.VERSION.SDK_INT >= 30) {
@@ -89,7 +90,7 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(status, lp(-1, -2));
 
         play = new Button(this);
-        play.setText("Jogar");
+        play.setText(Txt.t("play", "Jogar"));
         play.setTextSize(18);
         play.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -98,7 +99,7 @@ public class LetsGoLauncherActivity extends Activity {
                 if (!gameDataReady(LetsGoLauncherActivity.this)) {
                     refreshStatus();
                     android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                        "O jogo ainda não está pronto: veja o estado da pasta acima.",
+                        Txt.t("not_ready", "O jogo ainda não está pronto: veja o estado da pasta acima."),
                         android.widget.Toast.LENGTH_LONG).show();
                     return;
                 }
@@ -109,7 +110,7 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(play, lp(-1, -2));
 
         pick = new Button(this);
-        pick.setText("Escolher a pasta do jogo");
+        pick.setText(Txt.t("sel_folder", "Escolher a pasta do jogo"));
         pick.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { pickGameDir(); }
         });
@@ -119,7 +120,7 @@ public class LetsGoLauncherActivity extends Activity {
 
         // All-files access: the runtime opens the game folder by path (fopen), the folder picker alone is not enough.
         access = new Button(this);
-        access.setText("Permitir acesso a todos os arquivos");
+        access.setText(Txt.t("allow_all", "Permitir acesso a todos os arquivos"));
         access.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { requestAllFilesAccess(); }
         });
@@ -128,7 +129,7 @@ public class LetsGoLauncherActivity extends Activity {
         // A romfs.bin cut short (the first boot builds it from romfs/; stopping it midway leaves a short file that
         // the runtime would take as done): remove it so the next boot builds it again. Only offered with romfs/.
         rebuild = new Button(this);
-        rebuild.setText("Refazer romfs.bin a partir de romfs/");
+        rebuild.setText(Txt.t("rebuild_btn", "Refazer romfs.bin a partir de romfs/"));
         rebuild.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { confirmRebuild(); }
         });
@@ -136,19 +137,19 @@ public class LetsGoLauncherActivity extends Activity {
 
         // Reversible: forget the folder (preference + persisted permission); the files stay where they are.
         forget = new Button(this);
-        forget.setText("Esquecer esta pasta");
+        forget.setText(Txt.t("forget", "Esquecer esta pasta"));
         forget.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 GameDir.forget(LetsGoLauncherActivity.this);
                 refreshStatus();
                 android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                    "Pasta esquecida. Os arquivos não foram apagados.", android.widget.Toast.LENGTH_LONG).show();
+                    Txt.t("forgot", "Pasta esquecida. Os arquivos não foram apagados."), android.widget.Toast.LENGTH_LONG).show();
             }
         });
         root.addView(forget, lp(-1, -2));
 
         Button log = new Button(this);
-        log.setText("Ver log");
+        log.setText(Txt.t("ver_log", "Ver log"));
         log.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 startActivity(new Intent(LetsGoLauncherActivity.this,
@@ -165,7 +166,7 @@ public class LetsGoLauncherActivity extends Activity {
         // and puts it on trial until it has brought the game to its first frames (GpuDrivers). Importing a .zip by
         // hand stays (no network, or a preferred build).
         android.widget.TextView drvTitle = new android.widget.TextView(this);
-        drvTitle.setText("Driver GPU (Turnip)");
+        drvTitle.setText(Txt.t("gpu", "Driver GPU (Turnip)"));
         drvTitle.setTextSize(16);
         drvTitle.setTextColor(Color.rgb(255, 255, 255));
         drvTitle.setPadding(0, dp(16), 0, dp(4));
@@ -174,7 +175,7 @@ public class LetsGoLauncherActivity extends Activity {
         drvDevice = new android.widget.TextView(this);
         drvDevice.setTextSize(12);
         drvDevice.setTextColor(Color.rgb(150, 160, 170));
-        drvDevice.setText("Detectando o aparelho...");
+        drvDevice.setText(Txt.t("detecting", "Detectando o aparelho..."));
         root.addView(drvDevice, lp(-1, -2));
 
         drvStatus = new android.widget.TextView(this);
@@ -196,7 +197,7 @@ public class LetsGoLauncherActivity extends Activity {
         }, "gpu-detect").start();
 
         Button autoDrv = new Button(this);
-        autoDrv.setText("Baixar o driver recomendado para este aparelho");
+        autoDrv.setText(Txt.t("dl_recommended", "Baixar o driver recomendado para este aparelho"));
         autoDrv.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 recommendDriver(false);
@@ -207,7 +208,7 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(autoDrv, adlp);
 
         Button importDrv = new Button(this);
-        importDrv.setText("Importar driver Turnip (.zip)");
+        importDrv.setText(Txt.t("import_driver", "Importar driver Turnip (.zip)"));
         importDrv.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -219,13 +220,13 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(importDrv, lp(-1, -2));
 
         Button useSystem = new Button(this);
-        useSystem.setText("Usar driver do sistema");
+        useSystem.setText(Txt.t("use_system", "Usar driver do sistema"));
         useSystem.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 GpuDrivers.select(LetsGoLauncherActivity.this, null);
                 refreshDrivers();
                 android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                    "Driver do sistema selecionado.", android.widget.Toast.LENGTH_SHORT).show();
+                    Txt.t("driver_sys", "Driver do sistema selecionado."), android.widget.Toast.LENGTH_SHORT).show();
             }
         });
         root.addView(useSystem, lp(-1, -2));
@@ -244,37 +245,37 @@ public class LetsGoLauncherActivity extends Activity {
                 GpuDrivers.select(LetsGoLauncherActivity.this, next);
                 refreshDrivers();
                 android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                    "Driver selecionado: " + next.name, android.widget.Toast.LENGTH_SHORT).show();
+                    Txt.t("driver_set", "Driver selecionado: ") + next.name, android.widget.Toast.LENGTH_SHORT).show();
             }
         });
 
         // ---- Game settings (written to larecomp.ini in the game folder) ----
         TextView cfgTitle = new TextView(this);
-        cfgTitle.setText("Configurações");
+        cfgTitle.setText(Txt.t("cfg", "Configurações"));
         cfgTitle.setTextSize(18);
         cfgTitle.setTextColor(Color.WHITE);
         cfgTitle.setPadding(0, dp(20), 0, dp(8));
         root.addView(cfgTitle, lp(-1, -2));
 
         final CheckBox fps60 = new CheckBox(this);
-        fps60.setText("60 fps (experimental)");
+        fps60.setText(Txt.t("fps60", "60 fps (experimental)"));
         fps60.setTextColor(Color.rgb(200, 210, 220));
         root.addView(fps60, lp(-1, -2));
 
         final CheckBox smaa = new CheckBox(this);
-        smaa.setText("Suavizar serrilhado (SMAA)");
+        smaa.setText(Txt.t("smaa", "Suavizar serrilhado (SMAA)"));
         smaa.setTextColor(Color.rgb(200, 210, 220));
         smaa.setChecked(true);
         root.addView(smaa, lp(-1, -2));
 
         // Resolution scale selector (emulator-style)
         TextView resLabel = new TextView(this);
-        resLabel.setText("Resolução interna:");
+        resLabel.setText(Txt.t("res", "Resolução interna:"));
         resLabel.setTextColor(Color.rgb(200, 210, 220));
         root.addView(resLabel, lp(-1, -2));
 
         final android.widget.Spinner resSpinner = new android.widget.Spinner(this);
-        final String[] resNames = {"0.5x (480p) - Performance", "0.75x (540p) - Equilibrado", "1x (720p) - Padrão", "2x (1080p) - Qualidade"};
+        final String[] resNames = {Txt.t("res_05", "0.5x (480p) - Performance"), Txt.t("res_075", "0.75x (540p) - Equilibrado"), Txt.t("res_1x", "1x (720p) - Padrão"), Txt.t("res_2x", "2x (1080p) - Qualidade")};
         final String[] resValues = {"0.4444", "0.5", "0.6667", "1.0"};
         android.widget.ArrayAdapter<String> resAdapter = new android.widget.ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, resNames);
@@ -302,12 +303,12 @@ public class LetsGoLauncherActivity extends Activity {
         // game_lang (runtime/mods.c game_language); empty = English, which is also what a fan translation that
         // replaces the English/ folder (PT-BR) needs. An installed mod that carries its own language still wins.
         TextView langLabel = new TextView(this);
-        langLabel.setText("Idioma do jogo:");
+        langLabel.setText(Txt.t("lang", "Idioma do jogo:"));
         langLabel.setTextColor(Color.rgb(200, 210, 220));
         root.addView(langLabel, lp(-1, -2));
 
         final android.widget.Spinner langSpinner = new android.widget.Spinner(this);
-        final String[] langNames = {"Padrão (inglês / tradução PT-BR)", "English", "Français", "Español", "Deutsch",
+        final String[] langNames = {Txt.t("lang_default", "Padrão (inglês / tradução PT-BR)"), "English", "Français", "Español", "Deutsch",
                                     "Italiano", "日本語", "한국어", "简体中文", "繁體中文"};
         final String[] langValues = {"", "en-US", "fr", "es", "de", "it", "ja", "ko", "zh-CN", "zh-TW"};
         android.widget.ArrayAdapter<String> langAdapter = new android.widget.ArrayAdapter<>(this,
@@ -334,12 +335,12 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(langSpinner, lp(-1, -2));
 
         final CheckBox wild = new CheckBox(this);
-        wild.setText("Batalhas selvagens (experimental)");
+        wild.setText(Txt.t("wild", "Batalhas selvagens (experimental)"));
         wild.setTextColor(Color.rgb(200, 210, 220));
         root.addView(wild, lp(-1, -2));
 
         final CheckBox touch = new CheckBox(this);
-        touch.setText("Controles touch na tela");
+        touch.setText(Txt.t("touch", "Controles touch na tela"));
         touch.setTextColor(Color.rgb(200, 210, 220));
         touch.setChecked(getSharedPreferences("letsgo", MODE_PRIVATE).getBoolean("touch", true));
         root.addView(touch, lp(-1, -2));
@@ -350,7 +351,7 @@ public class LetsGoLauncherActivity extends Activity {
         });
         // default: minimal controls in the black bars (A, B, X, "..." + floating stick); checked: the old full layout
         final CheckBox touchFull = new CheckBox(this);
-        touchFull.setText("Layout touch completo (antigo)");
+        touchFull.setText(Txt.t("touch_full", "Layout touch completo (antigo)"));
         touchFull.setTextColor(Color.rgb(200, 210, 220));
         touchFull.setChecked("classic".equals(getSharedPreferences("letsgo", MODE_PRIVATE).getString("touch_layout", "minimal")));
         root.addView(touchFull, lp(-1, -2));
@@ -380,7 +381,7 @@ public class LetsGoLauncherActivity extends Activity {
         wild.setOnClickListener(saveIni);
 
         TextView hint = new TextView(this);
-        hint.setText("Se o jogo fechar ao abrir, use \"Ver log\" e me envie o conteúdo.");
+        hint.setText(Txt.t("hint_log", "Se o jogo fechar ao abrir, use \"Ver log\" e me envie o conteúdo."));
         hint.setTextSize(13);
         hint.setTextColor(Color.rgb(140, 150, 160));
         hint.setGravity(Gravity.CENTER);
@@ -411,7 +412,7 @@ public class LetsGoLauncherActivity extends Activity {
         try {
             startActivityForResult(i, REQ_GAME_DIR);
         } catch (android.content.ActivityNotFoundException e) {
-            android.widget.Toast.makeText(this, "Este aparelho não tem seletor de pastas.",
+            android.widget.Toast.makeText(this, Txt.t("no_picker", "Este aparelho não tem seletor de pastas."),
                 android.widget.Toast.LENGTH_LONG).show();
         }
     }
@@ -431,11 +432,11 @@ public class LetsGoLauncherActivity extends Activity {
         if (c.state != GameFolder.State.ROMFS_BIN_BROKEN || !c.hasRomfsDir) { refreshStatus(); return; }
         final File bin = new File(c.root, "extracted/romfs.bin");
         new android.app.AlertDialog.Builder(this)
-            .setTitle("Refazer romfs.bin")
-            .setMessage("romfs.bin está incompleto (" + mib(c.romfsBinBytes) + " de " + mib(c.romfsBinNeeded)
-                + "). Ele será apagado e refeito a partir da pasta romfs/ ao abrir o jogo (alguns minutos). "
-                + "A pasta romfs/ e o resto não são tocados.")
-            .setPositiveButton("Apagar e refazer", new android.content.DialogInterface.OnClickListener() {
+            .setTitle(Txt.t("rebuild_title", "Refazer romfs.bin"))
+            .setMessage(Txt.t("rebuild_msg1", "romfs.bin está incompleto (") + mib(c.romfsBinBytes) + Txt.t("of", " de ") + mib(c.romfsBinNeeded)
+                + Txt.t("rebuild_msg2", "). Ele será apagado e refeito a partir da pasta romfs/ ao abrir o jogo (alguns minutos). ")
+                + Txt.t("rebuild_msg3", "A pasta romfs/ e o resto não são tocados."))
+            .setPositiveButton(Txt.t("rebuild_ok", "Apagar e refazer"), new android.content.DialogInterface.OnClickListener() {
                 @Override public void onClick(android.content.DialogInterface d, int w) {
                     boolean ok = bin.delete();
                     android.util.Log.i("lasrecomp", "[folder] removed short romfs.bin (" + c.romfsBinBytes + " of "
@@ -443,7 +444,7 @@ public class LetsGoLauncherActivity extends Activity {
                     refreshStatus();
                 }
             })
-            .setNegativeButton("Cancelar", null)
+            .setNegativeButton(Txt.t("cancel", "Cancelar"), null)
             .show();
     }
 
@@ -458,7 +459,7 @@ public class LetsGoLauncherActivity extends Activity {
         // launcher rolls it back (the driver that last worked here, or none: said so, never silently).
         GpuDrivers.TrialOutcome t = GpuDrivers.checkTrial(this, LetsGoActivity.running);
         if (t != null && t.ok) {
-            android.widget.Toast.makeText(this, "Driver " + t.driver.name + " funcionou neste aparelho.",
+            android.widget.Toast.makeText(this, Txt.t("driver_word", "Driver ") + t.driver.name + Txt.t("worked_here", " funcionou neste aparelho."),
                     android.widget.Toast.LENGTH_LONG).show();
         } else if (t != null) {
             showTrialFailure(t);
@@ -472,24 +473,24 @@ public class LetsGoLauncherActivity extends Activity {
         GpuDrivers.Driver sel = GpuDrivers.selected(this);
         StringBuilder sb = new StringBuilder();
         if (sel != null) {
-            sb.append("Em uso: ").append(sel.name);
+            sb.append(Txt.t("in_use_driver", "Em uso: ")).append(sel.name);
             if (!sel.driverVersion.isEmpty()) sb.append(" (").append(sel.driverVersion).append(")");
-            sb.append("\n  origem: ").append(sel.origin());
-            sb.append(sel.started ? " · já funcionou aqui" : " · ainda não testado: em teste no próximo Jogar");
+            sb.append(Txt.t("origin", "\n  origem: ")).append(sel.origin());
+            sb.append(sel.started ? Txt.t("worked_before", " · já funcionou aqui") : Txt.t("on_trial", " · ainda não testado: em teste no próximo Jogar"));
             sb.append("\n");
         } else {
-            sb.append("Em uso: driver do sistema\n");
+            sb.append(Txt.t("in_use", "Em uso: driver do sistema\n"));
         }
         java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(this);
         if (all.isEmpty()) {
-            sb.append("Nenhum driver Turnip instalado: baixe o recomendado ou importe um .zip.");
+            sb.append(Txt.t("drivers_none", "Nenhum driver Turnip instalado: baixe o recomendado ou importe um .zip."));
         } else {
-            sb.append("Instalados (toque para trocar): ");
+            sb.append(Txt.t("installed", "Instalados (toque para trocar): "));
             for (int i = 0; i < all.size(); i++) {
                 GpuDrivers.Driver d = all.get(i);
                 if (i > 0) sb.append(", ");
                 sb.append(d.name);
-                if (d.failed && !d.started) sb.append(" [não iniciou]");
+                if (d.failed && !d.started) sb.append(Txt.t("did_not_start", " [não iniciou]"));
             }
         }
         drvStatus.setText(sb.toString());
@@ -497,19 +498,19 @@ public class LetsGoLauncherActivity extends Activity {
 
     private void showTrialFailure(GpuDrivers.TrialOutcome t) {
         String now = t.restored != null
-                ? "Voltei para " + t.restored.name + ", que já funcionou neste aparelho."
-                : "Nenhum driver Turnip está selecionado agora: o próximo Jogar usaria o driver do sistema.";
+                ? Txt.t("back_to", "Voltei para ") + t.restored.name + Txt.t("back_to2", ", que já funcionou neste aparelho.")
+                : Txt.t("none_selected", "Nenhum driver Turnip está selecionado agora: o próximo Jogar usaria o driver do sistema.");
         new android.app.AlertDialog.Builder(this)
-                .setTitle("O driver não iniciou o jogo")
-                .setMessage(t.driver.name + " (" + t.driver.origin() + ") não chegou às primeiras imagens do jogo "
-                        + "neste aparelho.\n\nMotivo: " + t.reason + "\n\n" + now
-                        + "\n\nEste pacote não será mais recomendado aqui. Você pode baixar o próximo da lista.")
-                .setPositiveButton("Baixar o próximo", new android.content.DialogInterface.OnClickListener() {
+                .setTitle(Txt.t("trial_fail_title", "O driver não iniciou o jogo"))
+                .setMessage(t.driver.name + " (" + t.driver.origin() + Txt.t("trial_fail1", ") não chegou às primeiras imagens do jogo ")
+                        + Txt.t("trial_fail2", "neste aparelho.\n\nMotivo: ") + t.reason + "\n\n" + now
+                        + Txt.t("trial_fail3", "\n\nEste pacote não será mais recomendado aqui. Você pode baixar o próximo da lista."))
+                .setPositiveButton(Txt.t("dl_next", "Baixar o próximo"), new android.content.DialogInterface.OnClickListener() {
                     @Override public void onClick(android.content.DialogInterface d, int w) {
                         recommendDriver(true);
                     }
                 })
-                .setNegativeButton("Fechar", null)
+                .setNegativeButton(Txt.t("close", "Fechar"), null)
                 .show();
     }
 
@@ -517,7 +518,7 @@ public class LetsGoLauncherActivity extends Activity {
     private void recommendDriver(final boolean afterFailure) {
         if (driverBusy) return;
         driverBusy = true;
-        drvStatus.setText("Consultando as publicações no GitHub...");
+        drvStatus.setText(Txt.t("asking_github", "Consultando as publicações no GitHub..."));
         new Thread(new Runnable() {
             @Override public void run() {
                 GpuInfo g = gpu != null ? gpu : GpuInfo.detect();
@@ -545,16 +546,16 @@ public class LetsGoLauncherActivity extends Activity {
     }
 
     private void offerDriver(final GpuInfo g, DriverCatalog.Check check, String error, boolean afterFailure) {
-        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this).setTitle("Driver recomendado");
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this).setTitle(Txt.t("recommended", "Driver recomendado"));
         if (check == null) {
-            b.setMessage("Não deu para consultar o GitHub: " + error
-                    + "\n\nSem rede, importe um .zip de driver pelo outro botão.")
+            b.setMessage(Txt.t("github_fail", "Não deu para consultar o GitHub: ") + error
+                    + Txt.t("github_fail2", "\n\nSem rede, importe um .zip de driver pelo outro botão."))
                     .setPositiveButton("OK", null).show();
             return;
         }
         if (g.family == GpuInfo.Family.NOT_ADRENO) {
-            b.setMessage(g.summary() + "\n\nEste aparelho não tem GPU Adreno: drivers Turnip não se aplicam. "
-                    + "O jogo usa o driver do sistema.").setPositiveButton("OK", null).show();
+            b.setMessage(g.summary() + Txt.t("not_adreno", "\n\nEste aparelho não tem GPU Adreno: drivers Turnip não se aplicam. ")
+                    + Txt.t("not_adreno2", "O jogo usa o driver do sistema.")).setPositiveButton("OK", null).show();
             return;
         }
         java.util.Set<String> bad = GpuDrivers.badPackages(this);
@@ -565,34 +566,34 @@ public class LetsGoLauncherActivity extends Activity {
             outsideRules = !plan.isEmpty();
         }
         StringBuilder m = new StringBuilder();
-        m.append("Aparelho: ").append(g.summary()).append("\n");
-        m.append("Regras: ").append(check.rulesFromGitHub
-                ? "auto-drivers.json de github.com/Droid-Deck/Drivers-CI" : "tabela interna (regras do GitHub ilegíveis)");
+        m.append(Txt.t("device", "Aparelho: ")).append(g.summary()).append("\n");
+        m.append(Txt.t("rules", "Regras: ")).append(check.rulesFromGitHub
+                ? Txt.t("rules_github", "auto-drivers.json de github.com/Droid-Deck/Drivers-CI") : Txt.t("rules_builtin", "tabela interna (regras do GitHub ilegíveis)"));
         m.append(" → ").append(android.text.TextUtils.join(", ", check.preferences(g))).append("\n");
         if (!check.failedSources.isEmpty())
-            m.append("Sem resposta de: ").append(android.text.TextUtils.join(", ", check.failedSources)).append("\n");
+            m.append(Txt.t("no_answer", "Sem resposta de: ")).append(android.text.TextUtils.join(", ", check.failedSources)).append("\n");
         if (plan.isEmpty()) {
-            b.setMessage(m + "\nNenhum pacote disponível para este aparelho"
-                    + (bad.isEmpty() ? "." : " além dos que já falharam aqui.")
-                    + " Importe um .zip, ou use o driver do sistema.").setPositiveButton("OK", null).show();
+            b.setMessage(m + Txt.t("no_package", "\nNenhum pacote disponível para este aparelho")
+                    + (bad.isEmpty() ? "." : Txt.t("no_package2", " além dos que já falharam aqui."))
+                    + Txt.t("no_package3", " Importe um .zip, ou use o driver do sistema.")).setPositiveButton("OK", null).show();
             return;
         }
         if (outsideRules)
-            m.append("\nOs pacotes recomendados já falharam aqui. Fora da regra, para esta família de GPU:\n");
-        m.append("\nVai baixar:\n").append(plan.get(0).details());
+            m.append(Txt.t("outside_rules", "\nOs pacotes recomendados já falharam aqui. Fora da regra, para esta família de GPU:\n"));
+        m.append(Txt.t("will_download", "\nVai baixar:\n")).append(plan.get(0).details());
         if (plan.size() > 1) {
-            m.append("\n\nSe o download falhar, depois: ");
+            m.append(Txt.t("then", "\n\nSe o download falhar, depois: "));
             for (int i = 1; i < plan.size(); i++) m.append(i > 1 ? ", " : "").append(plan.get(i).title());
         }
-        m.append("\n\nO driver fica em teste até o jogo mostrar as primeiras imagens; se não iniciar, o app volta "
-                + "atrás e propõe o próximo.");
+        m.append(Txt.t("trial_note1", "\n\nO driver fica em teste até o jogo mostrar as primeiras imagens; se não iniciar, o app volta ")
+                + Txt.t("trial_note2", "atrás e propõe o próximo."));
         b.setMessage(m.toString())
-                .setPositiveButton("Baixar e usar", new android.content.DialogInterface.OnClickListener() {
+                .setPositiveButton(Txt.t("dl_use", "Baixar e usar"), new android.content.DialogInterface.OnClickListener() {
                     @Override public void onClick(android.content.DialogInterface d, int w) {
                         downloadPlan(plan, 0, new StringBuilder());
                     }
                 })
-                .setNegativeButton("Cancelar", null)
+                .setNegativeButton(Txt.t("cancel", "Cancelar"), null)
                 .show();
     }
 
@@ -601,14 +602,14 @@ public class LetsGoLauncherActivity extends Activity {
         if (i >= plan.size()) {
             driverBusy = false;
             refreshDrivers();
-            new android.app.AlertDialog.Builder(this).setTitle("Download do driver falhou")
-                    .setMessage(errors + "\nNada foi alterado: o driver em uso continua o mesmo.")
+            new android.app.AlertDialog.Builder(this).setTitle(Txt.t("dl_failed", "Download do driver falhou"))
+                    .setMessage(errors + Txt.t("nothing_changed", "\nNada foi alterado: o driver em uso continua o mesmo."))
                     .setPositiveButton("OK", null).show();
             return;
         }
         driverBusy = true;
         final DriverCatalog.Candidate c = plan.get(i);
-        drvStatus.setText("Baixando " + c.title() + "...");
+        drvStatus.setText(Txt.t("downloading", "Baixando ") + c.title() + "...");
         new Thread(new Runnable() {
             @Override public void run() {
                 GpuDrivers.ImportResult r = null;
@@ -627,7 +628,7 @@ public class LetsGoLauncherActivity extends Activity {
                                 shown = pct;
                                 runOnUiThread(new Runnable() {
                                     @Override public void run() {
-                                        drvStatus.setText("Baixando " + c.title() + (pct >= 0 ? " " + pct + "%" : ""));
+                                        drvStatus.setText(Txt.t("downloading", "Baixando ") + c.title() + (pct >= 0 ? " " + pct + "%" : ""));
                                     }
                                 });
                             }
@@ -651,8 +652,8 @@ public class LetsGoLauncherActivity extends Activity {
                             android.util.Log.w("lasrecomp", "[gpu] " + c.asset + ": " + fe);
                             errors.append(c.title()).append(": ").append(fe).append("\n");
                             if (i + 1 < plan.size())
-                                android.widget.Toast.makeText(LetsGoLauncherActivity.this, c.title() + " falhou ("
-                                        + fe + "); tentando " + plan.get(i + 1).title(),
+                                android.widget.Toast.makeText(LetsGoLauncherActivity.this, c.title() + Txt.t("failed_paren", " falhou (")
+                                        + fe + Txt.t("trying", "); tentando ") + plan.get(i + 1).title(),
                                         android.widget.Toast.LENGTH_LONG).show();
                             downloadPlan(plan, i + 1, errors);
                             return;
@@ -660,9 +661,9 @@ public class LetsGoLauncherActivity extends Activity {
                         driverBusy = false;
                         GpuDrivers.select(LetsGoLauncherActivity.this, fr.driver);
                         refreshDrivers();
-                        android.widget.Toast.makeText(LetsGoLauncherActivity.this, "Driver instalado e verificado "
-                                + "(sha256 conferido): " + fr.driver.name
-                                + (fr.driver.started ? "" : ". Será testado no próximo Jogar."),
+                        android.widget.Toast.makeText(LetsGoLauncherActivity.this, Txt.t("installed_ok1", "Driver instalado e verificado ")
+                                + Txt.t("installed_ok2", "(sha256 conferido): ") + fr.driver.name
+                                + (fr.driver.started ? "" : Txt.t("installed_ok3", ". Será testado no próximo Jogar.")),
                                 android.widget.Toast.LENGTH_LONG).show();
                     }
                 });
@@ -676,14 +677,14 @@ public class LetsGoLauncherActivity extends Activity {
         GameFolder.Check c = gameFolder(this);
         boolean needAccess = GameDir.needsAllFilesAccess(this, dir);
         boolean gameLib = new File(getApplicationInfo().nativeLibraryDir, "liblasgame.so").exists();
-        String where = dir != null ? "Pasta: " + dir : "";
+        String where = dir != null ? Txt.t("folder", "Pasta: ") + dir : "";
         String text;
         if (needAccess) {
-            text = "O app precisa do acesso a todos os arquivos para ler a pasta do jogo.\n" + where;
+            text = Txt.t("need_access", "O app precisa do acesso a todos os arquivos para ler a pasta do jogo.\n") + where;
         } else {
             text = describe(c) + (where.isEmpty() ? "" : "\n" + where);
         }
-        if (!gameLib) text += "\nEste APK não tem o código do jogo (liblasgame.so).";
+        if (!gameLib) text += Txt.t("no_gamelib", "\nEste APK não tem o código do jogo (liblasgame.so).");
         status.setText(text);
         boolean ready = gameLib && !needAccess && c.playable();
         android.util.Log.i("lasrecomp", "[folder] state " + c.state + (needAccess ? " (no all-files access)" : "")
@@ -692,7 +693,7 @@ public class LetsGoLauncherActivity extends Activity {
             play.setEnabled(ready);
             play.setAlpha(ready ? 1f : 0.4f);
         }
-        if (pick != null) pick.setText(dir == null ? "Escolher a pasta do jogo" : "Escolher outra pasta");
+        if (pick != null) pick.setText(dir == null ? Txt.t("sel_folder", "Escolher a pasta do jogo") : Txt.t("retry", "Escolher outra pasta"));
         if (forget != null) forget.setVisibility(dir != null ? android.view.View.VISIBLE : android.view.View.GONE);
         if (access != null) access.setVisibility(needAccess ? android.view.View.VISIBLE : android.view.View.GONE);
         if (rebuild != null) rebuild.setVisibility(!needAccess && c.state == GameFolder.State.ROMFS_BIN_BROKEN
@@ -703,45 +704,45 @@ public class LetsGoLauncherActivity extends Activity {
     static String describe(GameFolder.Check c) {
         switch (c.state) {
             case NOT_SET:
-                return "Escolha a pasta do jogo já extraído: a pasta que contém extracted/exefs/ e "
-                    + "extracted/romfs/ (ou extracted/romfs.bin).";
+                return Txt.t("st_not_set1", "Escolha a pasta do jogo já extraído: a pasta que contém extracted/exefs/ e ")
+                    + Txt.t("st_not_set2", "extracted/romfs/ (ou extracted/romfs.bin).");
             case MISSING:
-                return "A pasta escolhida não existe mais (movida, renomeada ou cartão retirado). "
-                    + "Escolha-a de novo.";
+                return Txt.t("st_missing1", "A pasta escolhida não existe mais (movida, renomeada ou cartão retirado). ")
+                    + Txt.t("st_missing2", "Escolha-a de novo.");
             case UNREADABLE:
-                return "A pasta escolhida não pode ser lida.";
+                return Txt.t("st_unreadable", "A pasta escolhida não pode ser lida.");
             case NO_EXTRACTED:
-                return "Esta pasta não tem extracted/. Escolha a pasta que contém extracted/exefs/ e "
+                return Txt.t("st_no_extracted1", "Esta pasta não tem extracted/. Escolha a pasta que contém extracted/exefs/ e ")
                     + "extracted/romfs/.";
             case LOOSE:
-                return "exefs/ e romfs/ estão direto nesta pasta: coloque-os numa subpasta chamada extracted/ "
-                    + "(extracted/exefs/, extracted/romfs/) e escolha esta pasta de novo.";
+                return Txt.t("st_loose1", "exefs/ e romfs/ estão direto nesta pasta: coloque-os numa subpasta chamada extracted/ ")
+                    + Txt.t("st_loose2", "(extracted/exefs/, extracted/romfs/) e escolha esta pasta de novo.");
             case NO_EXEFS:
-                return "extracted/exefs/ está incompleto: faltam main e main.npdm (ou main não é um NSO).";
+                return Txt.t("st_no_exefs", "extracted/exefs/ está incompleto: faltam main e main.npdm (ou main não é um NSO).");
             case UNKNOWN_GAME:
-                return "extracted/exefs/ não é de Pokémon: Let's Go, Eevee! nem Pikachu!.";
+                return Txt.t("st_unknown", "extracted/exefs/ não é de Pokémon: Let's Go, Eevee! nem Pikachu!.");
             case IMPORT_PARTIAL:
-                return "Uma importação foi interrompida nesta pasta (.import/ sem .import_ok): os arquivos "
-                    + "podem estar incompletos.";
+                return Txt.t("st_partial1", "Uma importação foi interrompida nesta pasta (.import/ sem .import_ok): os arquivos ")
+                    + Txt.t("st_partial2", "podem estar incompletos.");
             case NO_ROMFS:
-                return (c.game != null ? c.game + ": " : "") + "falta a RomFS. Copie extracted/romfs/ "
-                    + "(com bin/message dentro) ou extracted/romfs.bin.";
+                return (c.game != null ? c.game + ": " : "") + Txt.t("st_no_romfs1", "falta a RomFS. Copie extracted/romfs/ ")
+                    + Txt.t("st_no_romfs2", "(com bin/message dentro) ou extracted/romfs.bin.");
             case ROMFS_DIR_INCOMPLETE:
-                return (c.game != null ? c.game + ": " : "") + "extracted/romfs/ está incompleto (falta "
-                    + c.romfsMissing + "/). Copie a pasta romfs/ inteira de novo.";
+                return (c.game != null ? c.game + ": " : "") + Txt.t("st_romfs_dir1", "extracted/romfs/ está incompleto (falta ")
+                    + c.romfsMissing + Txt.t("st_romfs_dir2", "/). Copie a pasta romfs/ inteira de novo.");
             case ROMFS_BIN_BROKEN:
-                return (c.game != null ? c.game + ": " : "") + "extracted/romfs.bin está incompleto ("
-                    + mib(Math.max(0, c.romfsBinBytes)) + (c.romfsBinNeeded > 0 ? " de " + mib(c.romfsBinNeeded) : "")
-                    + "). " + (c.hasRomfsDir ? "Ele pode ser refeito a partir de romfs/."
-                    : "Copie-o de novo.");
+                return (c.game != null ? c.game + ": " : "") + Txt.t("st_romfs_bin1", "extracted/romfs.bin está incompleto (")
+                    + mib(Math.max(0, c.romfsBinBytes)) + (c.romfsBinNeeded > 0 ? Txt.t("of", " de ") + mib(c.romfsBinNeeded) : "")
+                    + "). " + (c.hasRomfsDir ? Txt.t("st_romfs_bin2", "Ele pode ser refeito a partir de romfs/.")
+                    : Txt.t("st_romfs_bin3", "Copie-o de novo."));
             case READ_ONLY:
-                return "A pasta não pode ser gravada (saves, configurações, cache). Escolha uma pasta do "
-                    + "armazenamento interno.";
+                return Txt.t("st_ro1", "A pasta não pode ser gravada (saves, configurações, cache). Escolha uma pasta do ")
+                    + Txt.t("st_ro2", "armazenamento interno.");
             case READY:
-                return "Jogo pronto para iniciar: " + c.game + ".";
+                return Txt.t("st_ready", "Jogo pronto para iniciar: ") + c.game + ".";
             case READY_FIRST_RUN:
-                return "Jogo pronto: " + c.game + ". Na primeira abertura, romfs.bin é montado a partir de "
-                    + "romfs/ (alguns minutos, ~4,5 GB livres).";
+                return Txt.t("st_ready_first1", "Jogo pronto: ") + c.game + Txt.t("st_ready_first2", ". Na primeira abertura, romfs.bin é montado a partir de ")
+                    + Txt.t("st_ready_first3", "romfs/ (alguns minutos, ~4,5 GB livres).");
         }
         return String.valueOf(c.state);
     }
@@ -765,8 +766,8 @@ public class LetsGoLauncherActivity extends Activity {
             // keep the folder across restarts and app updates (GameDir: preference + persisted permission)
             String path = GameDir.choose(this, uri, data.getFlags());
             if (path == null) {
-                android.widget.Toast.makeText(this, "Escolha a pasta pelo armazenamento do aparelho "
-                    + "(armazenamento interno ou cartão SD), não por \"Recentes\" nem por um app de nuvem.",
+                android.widget.Toast.makeText(this, Txt.t("pick_storage1", "Escolha a pasta pelo armazenamento do aparelho ")
+                    + Txt.t("pick_storage2", "(armazenamento interno ou cartão SD), não por \"Recentes\" nem por um app de nuvem."),
                     android.widget.Toast.LENGTH_LONG).show();
             }
             refreshStatus();
@@ -776,12 +777,12 @@ public class LetsGoLauncherActivity extends Activity {
                 && data != null && data.getData() != null) {
             GpuDrivers.ImportResult r = GpuDrivers.importZip(this, data.getData());
             if (r.error != null) {
-                android.widget.Toast.makeText(this, "Erro: " + r.error,
+                android.widget.Toast.makeText(this, Txt.t("error", "Erro: ") + r.error,
                         android.widget.Toast.LENGTH_LONG).show();
             } else {
                 GpuDrivers.select(this, r.driver);
-                android.widget.Toast.makeText(this, "Driver instalado: " + r.driver.name
-                        + (r.driver.started ? "" : " (será testado no próximo Jogar)"),
+                android.widget.Toast.makeText(this, Txt.t("driver_new", "Driver instalado: ") + r.driver.name
+                        + (r.driver.started ? "" : Txt.t("tested_next", " (será testado no próximo Jogar)")),
                         android.widget.Toast.LENGTH_LONG).show();
             }
             refreshDrivers();

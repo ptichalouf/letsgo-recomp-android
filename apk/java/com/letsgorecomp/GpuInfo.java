@@ -109,11 +109,11 @@ final class GpuInfo {
         StringBuilder sb = new StringBuilder();
         sb.append(Build.MANUFACTURER).append(' ').append(Build.MODEL);
         if (!soc.isEmpty()) sb.append(" · ").append(soc);
-        if (!adreno) sb.append(" · GPU não Adreno");
+        if (!adreno) sb.append(Txt.t("g_not_adreno", " · GPU não Adreno"));
         else sb.append(" · Adreno ").append(model > 0 ? String.valueOf(model) : "?").append(" (").append(family).append(')');
         sb.append(" · Android API ").append(sdk);
         Matcher m = Pattern.compile("V@[0-9.]+").matcher(systemDriver);
-        if (m.find()) sb.append(" · driver do sistema ").append(m.group());
+        if (m.find()) sb.append(Txt.t("g_sysdrv", " · driver do sistema ")).append(m.group());
         return sb.toString();
     }
 

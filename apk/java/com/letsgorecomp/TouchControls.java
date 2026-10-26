@@ -161,7 +161,7 @@ public class TouchControls extends ViewGroup {
             android.content.Intent share = new android.content.Intent(android.content.Intent.ACTION_SEND);
             share.setType("text/plain");
             share.putExtra(android.content.Intent.EXTRA_STREAM, android.net.Uri.fromFile(out));
-            activity.startActivity(android.content.Intent.createChooser(share, "Compartilhar log"));
+            activity.startActivity(android.content.Intent.createChooser(share, Txt.t("share_log", "Compartilhar log")));
         } catch (Exception e) { }
     }
 

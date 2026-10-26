@@ -77,7 +77,7 @@ final class GpuDrivers {
         String packageSha256() { return source == null ? "" : source.optString("sha256", ""); }
 
         String origin() {
-            if (source == null) return "importado à mão";
+            if (source == null) return Txt.t("imported_by_hand", "importado à mão");
             return "github.com/" + source.optString("repo") + " " + source.optString("tag");
         }
     }
@@ -222,9 +222,9 @@ final class GpuDrivers {
         File failed = new File(dir, START_FAILED);
         if (failed.exists()) {
             reason = readText(failed).trim();
-            if (reason.isEmpty()) reason = "o jogo recusou o driver";
+            if (reason.isEmpty()) reason = Txt.t("r_refused", "o jogo recusou o driver");
         } else if (t.getInt("pid", -1) != Process.myPid()) {
-            reason = "o app fechou antes de o jogo mostrar as primeiras imagens com este driver";
+            reason = Txt.t("r_closed", "o app fechou antes de o jogo mostrar as primeiras imagens com este driver");
         } else if (gameRunning) {
             return null;  // still starting
         } else {
@@ -261,18 +261,18 @@ final class GpuDrivers {
         File tmp = new File(c.getCacheDir(), "driver-import.zip");
         try (InputStream in = c.getContentResolver().openInputStream(uri);
              OutputStream out = new FileOutputStream(tmp)) {
-            if (in == null) return new ImportResult(null, "Não deu para abrir o arquivo");
+            if (in == null) return new ImportResult(null, Txt.t("z_open", "Não deu para abrir o arquivo"));
             byte[] b = new byte[65536];
             long n = 0;
             int r;
             while ((r = in.read(b)) > 0) {
                 n += r;
-                if (n > MAX_ZIP) return new ImportResult(null, "Arquivo grande demais para um driver");
+                if (n > MAX_ZIP) return new ImportResult(null, Txt.t("z_big", "Arquivo grande demais para um driver"));
                 out.write(b, 0, r);
             }
         } catch (IOException ex) {
             tmp.delete();
-            return new ImportResult(null, "Não deu para ler o zip: " + ex.getMessage());
+            return new ImportResult(null, Txt.t("z_read", "Não deu para ler o zip: ") + ex.getMessage());
         }
         try {
             return installZip(c, tmp, null);
@@ -304,26 +304,26 @@ final class GpuDrivers {
                     if (prefix == null || p.length() < prefix.length()) prefix = p;
                 }
             }
-            if (prefix == null) return new ImportResult(null, "O zip não tem meta.json");
+            if (prefix == null) return new ImportResult(null, Txt.t("z_nometa", "O zip não tem meta.json"));
             JSONObject meta;
             byte[] metaBytes = readEntry(z, prefix + "meta.json", 1 << 16);
             try {
                 meta = new JSONObject(new String(metaBytes, "UTF-8"));
             } catch (Exception ex) {
-                return new ImportResult(null, "meta.json não é um JSON válido");
+                return new ImportResult(null, Txt.t("z_badmeta", "meta.json não é um JSON válido"));
             }
             String libraryName = meta.optString("libraryName", "");
             if (libraryName.isEmpty() || libraryName.contains("/") || libraryName.startsWith("."))
-                return new ImportResult(null, "meta.json não tem libraryName utilizável");
+                return new ImportResult(null, Txt.t("z_nolib", "meta.json não tem libraryName utilizável"));
             int minApi = meta.optInt("minApi", 0);
             if (minApi > Build.VERSION.SDK_INT)
                 return new ImportResult(null, String.format(Locale.US,
-                        "O driver precisa da API %d do Android; este aparelho é API %d", minApi, Build.VERSION.SDK_INT));
+                        Txt.t("z_api", "O driver precisa da API %d do Android; este aparelho é API %d"), minApi, Build.VERSION.SDK_INT));
             if (z.getEntry(prefix + libraryName) == null)
-                return new ImportResult(null, "O zip não tem " + prefix + libraryName);
+                return new ImportResult(null, Txt.t("z_missing", "O zip não tem ") + prefix + libraryName);
             byte[] so = readEntry(z, prefix + libraryName, (int) MAX_ZIP);
             if (so.length < 1024 || so[0] != 0x7f || so[1] != 'E' || so[2] != 'L' || so[3] != 'F')
-                return new ImportResult(null, libraryName + " não é uma biblioteca ELF");
+                return new ImportResult(null, libraryName + Txt.t("z_notelf", " não é uma biblioteca ELF"));
             String libSha = DriverCatalog.hex(MessageDigest.getInstance("SHA-256").digest(so));
             ZipEntry man = z.getEntry("manifest.json");
             if (man != null) {
@@ -331,9 +331,9 @@ final class GpuDrivers {
                 JSONObject a = m.optJSONObject("drivers") == null ? null : m.optJSONObject("drivers").optJSONObject("android");
                 if (a != null && (prefix + libraryName).equals(a.optString("library"))) {
                     if (!libSha.equalsIgnoreCase(a.optString("sha256")))
-                        return new ImportResult(null, "A biblioteca não confere com o sha256 do manifest.json do pacote");
+                        return new ImportResult(null, Txt.t("z_sha", "A biblioteca não confere com o sha256 do manifest.json do pacote"));
                 } else if (prefix.equals("android/")) {
-                    return new ImportResult(null, "manifest.json do pacote não descreve " + prefix + libraryName);
+                    return new ImportResult(null, Txt.t("z_manifest", "manifest.json do pacote não descreve ") + prefix + libraryName);
                 }
             }
             // The same library already installed: reuse it (its trial history stays).
@@ -357,18 +357,18 @@ final class GpuDrivers {
                 }
             } catch (Exception ex) {
                 deleteTree(dir);
-                return new ImportResult(null, "Não deu para instalar o driver: " + ex.getMessage());
+                return new ImportResult(null, Txt.t("z_install", "Não deu para instalar o driver: ") + ex.getMessage());
             }
             Driver d = read(dir);
             if (d == null) {
                 deleteTree(dir);
-                return new ImportResult(null, "O driver não pôde ser lido de volta");
+                return new ImportResult(null, Txt.t("z_readback", "O driver não pôde ser lido de volta"));
             }
             Log.i("lasrecomp", "[gpu] driver installed: " + d.slug + " (" + d.libraryName + ", sha256 " + libSha
                     + ", " + d.origin() + ")");
             return new ImportResult(d, null);
         } catch (Exception ex) {
-            return new ImportResult(null, "Não deu para ler o zip: " + ex.getMessage());
+            return new ImportResult(null, Txt.t("z_read", "Não deu para ler o zip: ") + ex.getMessage());
         }
     }
 
@@ -393,14 +393,14 @@ final class GpuDrivers {
 
     private static byte[] readEntry(ZipFile z, String name, int max) throws IOException {
         ZipEntry e = z.getEntry(name);
-        if (e == null) throw new IOException(name + " ausente");
+        if (e == null) throw new IOException(name + Txt.t("z_absent", " ausente"));
         try (InputStream in = z.getInputStream(e)) {
             ByteArrayOutputStream o = new ByteArrayOutputStream();
             byte[] b = new byte[65536];
             int r;
             while ((r = in.read(b)) > 0) {
                 o.write(b, 0, r);
-                if (o.size() > max) throw new IOException(name + " grande demais");
+                if (o.size() > max) throw new IOException(name + Txt.t("z_toobig", " grande demais"));
             }
             return o.toByteArray();
         }

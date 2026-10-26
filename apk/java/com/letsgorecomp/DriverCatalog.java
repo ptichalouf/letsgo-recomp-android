@@ -67,7 +67,7 @@ final class DriverCatalog {
         String title() { return label(key) + " " + tag; }
 
         String details() {
-            return String.format(Locale.US, "%s\nFonte: github.com/%s (publicação %s%s)\nArquivo: %s (%.1f MB)\nsha256: %s",
+            return String.format(Locale.US, Txt.t("c_details", "%s\nFonte: github.com/%s (publicação %s%s)\nArquivo: %s (%.1f MB)\nsha256: %s"),
                     label(key), repo, tag, publishedAt.length() >= 10 ? ", " + publishedAt.substring(0, 10) : "",
                     asset, size / 1048576.0, sha256);
         }
@@ -163,11 +163,11 @@ final class DriverCatalog {
         switch (key) {
             case "banner": return "Banners-Turnip · Adreno 6xx/7xx";
             case "banner-a8xx": return "Banners-Turnip · Adreno 8xx";
-            case "banner-8g2-oneui": return "Banners-Turnip · 8 Gen 2 com One UI";
-            case "banner-710-720-test": return "Banners-Turnip · Adreno 710/720 (teste)";
-            case "wn-b": return "WinNative Turnip · Balanced (todas as Adreno)";
-            case "wn-p": return "WinNative Turnip · Performance (todas as Adreno)";
-            case "dd-turnip": return "DroidDeck DD-Turnip (todas as Adreno)";
+            case "banner-8g2-oneui": return Txt.t("c_8g2", "Banners-Turnip · 8 Gen 2 com One UI");
+            case "banner-710-720-test": return Txt.t("c_710", "Banners-Turnip · Adreno 710/720 (teste)");
+            case "wn-b": return Txt.t("c_wn_bal", "WinNative Turnip · Balanced (todas as Adreno)");
+            case "wn-p": return Txt.t("c_wn_perf", "WinNative Turnip · Performance (todas as Adreno)");
+            case "dd-turnip": return Txt.t("c_dd", "DroidDeck DD-Turnip (todas as Adreno)");
             default: return key;
         }
     }
@@ -271,7 +271,7 @@ final class DriverCatalog {
                 Log.w(TAG, "[gpu] releases of " + s.repo + ": " + e.getMessage());
             }
         }
-        if (failed.size() == SOURCES.size()) throw last != null ? last : new IOException("GitHub não respondeu");
+        if (failed.size() == SOURCES.size()) throw last != null ? last : new IOException(Txt.t("c_noresp", "GitHub não respondeu"));
         return new Check(rules, remote, byKey, failed);
     }
 
@@ -283,7 +283,7 @@ final class DriverCatalog {
     }
 
     static File download(File dir, Candidate cand, Progress p) throws IOException {
-        if (cand.size > MAX_DOWNLOAD) throw new IOException("arquivo grande demais (" + cand.size + " bytes)");
+        if (cand.size > MAX_DOWNLOAD) throw new IOException(Txt.t("c_big1", "arquivo grande demais (") + cand.size + " bytes)");
         dir.mkdirs();
         File part = new File(dir, cand.sha256 + ".part");
         File done = new File(dir, cand.sha256 + ".zip");
@@ -295,15 +295,15 @@ final class DriverCatalog {
             int r;
             while ((r = in.read(b)) > 0) {
                 n += r;
-                if (n > MAX_DOWNLOAD) throw new IOException("arquivo grande demais");
+                if (n > MAX_DOWNLOAD) throw new IOException(Txt.t("c_big", "arquivo grande demais"));
                 md.update(b, 0, r);
                 out.write(b, 0, r);
                 if (p != null) p.update(n, total);
             }
             String got = hex(md.digest());
             if (!got.equals(cand.sha256))
-                throw new IOException("sha256 diferente do publicado no GitHub (esperado " + cand.sha256.substring(0, 12)
-                        + "…, recebido " + got.substring(0, 12) + "…)");
+                throw new IOException(Txt.t("c_sha1", "sha256 diferente do publicado no GitHub (esperado ") + cand.sha256.substring(0, 12)
+                        + Txt.t("c_sha2", "…, recebido ") + got.substring(0, 12) + "…)");
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IOException(e.getMessage());
         } catch (IOException e) {
@@ -312,7 +312,7 @@ final class DriverCatalog {
         } finally {
             con.disconnect();
         }
-        if (!part.renameTo(done)) { part.delete(); throw new IOException("não deu para gravar o arquivo"); }
+        if (!part.renameTo(done)) { part.delete(); throw new IOException(Txt.t("c_write", "não deu para gravar o arquivo")); }
         return done;
     }
 
@@ -335,7 +335,7 @@ final class DriverCatalog {
         for (int hop = 0; hop < 6; hop++) {
             URL u = new URL(url);
             if (!"https".equals(u.getProtocol()) || !allowedHost(u.getHost(), hop == 0))
-                throw new IOException("endereço recusado: " + u.getHost());
+                throw new IOException(Txt.t("c_refused", "endereço recusado: ") + u.getHost());
             HttpURLConnection c = (HttpURLConnection) u.openConnection();
             c.setInstanceFollowRedirects(false);
             c.setConnectTimeout(15000);
@@ -346,21 +346,21 @@ final class DriverCatalog {
             if (code >= 300 && code < 400) {
                 String loc = c.getHeaderField("Location");
                 c.disconnect();
-                if (loc == null) throw new IOException("redirecionamento sem destino");
+                if (loc == null) throw new IOException(Txt.t("c_redir0", "redirecionamento sem destino"));
                 url = new URL(u, loc).toString();
                 continue;
             }
             if (code == 403 || code == 429) {
                 c.disconnect();
-                throw new IOException("limite de consultas do GitHub atingido; tente de novo em uma hora");
+                throw new IOException(Txt.t("c_rate", "limite de consultas do GitHub atingido; tente de novo em uma hora"));
             }
             if (code != 200) {
                 c.disconnect();
-                throw new IOException("GitHub respondeu HTTP " + code);
+                throw new IOException(Txt.t("c_http", "GitHub respondeu HTTP ") + code);
             }
             return c;
         }
-        throw new IOException("redirecionamentos demais");
+        throw new IOException(Txt.t("c_redirs", "redirecionamentos demais"));
     }
 
     private static byte[] get(String url, int max) throws IOException {
@@ -371,7 +371,7 @@ final class DriverCatalog {
             int r;
             while ((r = in.read(b)) > 0) {
                 o.write(b, 0, r);
-                if (o.size() > max) throw new IOException("resposta grande demais");
+                if (o.size() > max) throw new IOException(Txt.t("c_resp_big", "resposta grande demais"));
             }
             return o.toByteArray();
         } finally {

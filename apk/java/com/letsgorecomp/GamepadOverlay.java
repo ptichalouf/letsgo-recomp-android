@@ -211,7 +211,7 @@ public class GamepadOverlay extends FrameLayout {
                     share.setType("text/plain");
                     share.putExtra(android.content.Intent.EXTRA_STREAM,
                         android.net.Uri.fromFile(out));
-                    activity.startActivity(android.content.Intent.createChooser(share, "Compartilhar log"));
+                    activity.startActivity(android.content.Intent.createChooser(share, Txt.t("share_log", "Compartilhar log")));
                 } catch (Exception e) { }
             }
         });
@@ -237,10 +237,10 @@ public class GamepadOverlay extends FrameLayout {
                     boolean created = trig.createNewFile();
                     // DEFEITO A v0070: log CAP_REQUESTED
                     android.util.Log.i("lasrecomp", "[font-capture] CAP_REQUESTED: trigger file " + trig.getAbsolutePath() + (created ? " created" : " already exists"));
-                    android.widget.Toast.makeText(activity, "Captura ativada!", android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(activity, Txt.t("capture_on", "Captura ativada!"), android.widget.Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     android.util.Log.e("lasrecomp", "[font-capture] CAP_REQUESTED FAILED: " + e.getMessage());
-                    android.widget.Toast.makeText(activity, "Erro: " + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(activity, Txt.t("error", "Erro: ") + e.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
                 }
             }
         });
