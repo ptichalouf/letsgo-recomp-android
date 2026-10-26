@@ -4,7 +4,7 @@ set -u
 cd "$(dirname "$0")"
 ROOT="$PWD"
 DEPS="$ROOT/deps"
-NDK=~/Android/Sdk/ndk/28.2.13676358
+NDK=${ANDROID_NDK_HOME:-~/Android/Sdk/ndk/28.2.13676358}
 TC=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
 CXX=$TC/aarch64-linux-android26-clang++
 
@@ -21,7 +21,7 @@ SC_LIBS="$SC_LIBS $(find $SC/third_party/glslang -name '*.a' | sort)"
 
 FF=$DEPS/ffmpeg-android/lib
 
-$CXX -shared -o $OUTDIR/liblasrecomp.so \
+$CXX -shared -Wl,-soname,liblasrecomp.so -o $OUTDIR/liblasrecomp.so \
     $ROOT/build/obj-android/*.o \
     -L$DEPS/SDL3/build-android -lSDL3 \
     -L$FF -lavformat -lavcodec -lswscale -lavutil \

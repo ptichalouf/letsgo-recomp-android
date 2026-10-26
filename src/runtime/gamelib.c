@@ -14,7 +14,7 @@
 #include "rt.h"
 
 static const GameLibTables *g_tables;
-static char g_error[256];
+static char g_error[512];
 
 // The library's id file (<library>.id, written next to it by the build): its GAMELIB_ID, read without loading it.
 static bool id_matches(const char *lib) {
@@ -68,7 +68,8 @@ static const GameLibTables *open_lib(const char *path) {
     if (!entry) { snprintf(g_error, sizeof g_error, "%s: not game code", path); return NULL; }
     const GameLibTables *t = entry();
     if (!t || t->abi != GAMELIB_ABI || !t->id || strcmp(t->id, GAMELIB_ID)) {
-        snprintf(g_error, sizeof g_error, "%s was built for another version", path);
+        snprintf(g_error, sizeof g_error, "%s was built for another version (library abi %u id %s, runtime abi %d id %s)",
+                 path, t ? t->abi : 0u, t && t->id ? t->id : "?", GAMELIB_ABI, GAMELIB_ID);
         return NULL;  // (left loaded: nothing of it runs)
     }
     return t;
@@ -84,6 +85,11 @@ bool gamelib_load(const char *game_dir, char *why, size_t why_size) {
         const char *env = getenv("LARECOMP_GAME_LIB");
         for (int i = 0; i < n && !g_tables; i++) {
             if (!exists(c[i])) continue;
+            // the same file as an earlier candidate (Android: LARECOMP_GAME_LIB is the APK's lib dir): already tried,
+            // and trying it again would replace the real reason (dlopen's error) with "built for another version"
+            bool dup = false;
+            for (int j = 0; j < i; j++) dup = dup || !strcmp(c[i], c[j]);
+            if (dup) continue;
             bool given = i == 0 && env && *env;  // LARECOMP_GAME_LIB: loaded as given, the library's own id decides
             if (!given && !id_matches(c[i])) {
                 snprintf(g_error, sizeof g_error, "%s was built for another version", c[i]);
