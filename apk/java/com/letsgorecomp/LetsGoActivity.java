@@ -76,20 +76,28 @@ public class LetsGoActivity extends SDLActivity {
         // posições do diálogo (não o blob centralizado da v0087).
         // Custom GPU driver (Turnip via adrenotools): set the env before the native
         // runtime loads, so load_gipa() in device.c picks it up. Null = system driver.
+        // The launcher and the game share one process, and the environment outlives an
+        // Activity: the variable must be cleared when the system driver is chosen, or a
+        // driver selected for an earlier launch keeps running while the launcher shows
+        // "system driver". A selected driver whose .so is missing is still passed on:
+        // the runtime then stops with a message instead of drawing with another driver.
+        // A driver that has not yet started the game on this phone goes on trial here, before the runtime loads:
+        // the runtime marks it .started after its first frames, or .start_failed when it refuses it, and the
+        // launcher rolls back a trial that ended without .started (GpuDrivers.checkTrial).
+        running = true;
         try {
+            GpuDrivers.beginLaunch(this);
             GpuDrivers.Driver drv = GpuDrivers.selected(this);
             if (drv != null) {
                 java.io.File so = new java.io.File(
                         new java.io.File(GpuDrivers.driversDir(this), drv.slug), drv.libraryName);
-                if (so.isFile()) {
-                    android.system.Os.setenv("LARECOMP_GPU_DRIVER", so.getAbsolutePath(), true);
-                    android.system.Os.setenv("LARECOMP_NATIVE_LIB_DIR",
-                            getApplicationInfo().nativeLibraryDir, true);
-                    android.util.Log.i("lasrecomp", "[gpu] custom driver: " + so.getAbsolutePath());
-                } else {
-                    android.util.Log.w("lasrecomp", "[gpu] selected driver .so missing: " + so.getAbsolutePath());
-                }
+                android.system.Os.setenv("LARECOMP_GPU_DRIVER", so.getAbsolutePath(), true);
+                android.system.Os.setenv("LARECOMP_NATIVE_LIB_DIR",
+                        getApplicationInfo().nativeLibraryDir, true);
+                android.util.Log.i("lasrecomp", "[gpu] custom driver: " + so.getAbsolutePath()
+                        + (so.isFile() ? "" : " (MISSING)"));
             } else {
+                android.system.Os.unsetenv("LARECOMP_GPU_DRIVER");
                 android.util.Log.i("lasrecomp", "[gpu] system driver (no custom driver selected)");
             }
         } catch (Exception e) {
@@ -184,6 +192,16 @@ public class LetsGoActivity extends SDLActivity {
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         }
+    }
+
+    /** The game activity is alive in this process (a driver trial is then still running, not failed). */
+    static volatile boolean running;
+
+    @Override
+    protected void onDestroy() {
+        running = false;
+        GpuDrivers.gameClosed(this);
+        super.onDestroy();
     }
 
     @Override

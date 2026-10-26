@@ -6,6 +6,7 @@
 #endif
 #include <math.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,14 +28,12 @@ static atomic_bool ui_ready;
 static VkDebugUtilsMessengerEXT messenger;
 
 // ================================================================== dispatch / custom GPU drivers
-// (PAUSADO: trabalho do adrenotools/Turnip interrompido em 20/10 ~00:05 a pedido da Emily.
-//  Para retomar: definir LETSGO_ADRENOTOOLS no build, reativar vk_dispatch.h em vk.h, fiar
-//  create_instance() no custom gipa e popular a tabela.)
+// Ativo no Android: build-runtime.sh define LETSGO_ADRENOTOOLS e vk.h inclui vk_dispatch.h. Para conferir o
+// driver realmente usado, ler no log a linha "[vk] active driver: ..." (turnip Mesa = driverID 18).
 #ifdef LETSGO_ADRENOTOOLS
 // Every Vulkan entry point goes through g_vkd (vk_dispatch.h). At startup the table is filled from the
 // loader in use: the system loader normally, or a custom GPU driver (Turnip) via adrenotools when the
 // launcher selected one (LARECOMP_GPU_DRIVER=<dir>/<lib>.so, LARECOMP_NATIVE_LIB_DIR=<nativeLibraryDir>).
-VkDispatch g_vkd;
 static PFN_vkGetInstanceProcAddr g_gipa;  // the loader's vkGetInstanceProcAddr behind g_vkd
 
 #include <dlfcn.h>
@@ -42,48 +41,82 @@ static PFN_vkGetInstanceProcAddr g_gipa;  // the loader's vkGetInstanceProcAddr 
 #include <adrenotools/driver.h>
 #endif
 
-// Resolve the loader: adrenotools + the custom driver when configured, else the system loader.
+// A GPU driver the player chose and that cannot be used stops the app with a message that says so. Falling back to
+// the system driver silently is worse than stopping: the game then runs (or fails) on a driver the launcher does
+// not show, and its symptoms (missing text without VK_EXT_external_memory_host, no Vulkan 1.3) get blamed on the
+// wrong cause.
+//
+// The launcher keeps a driver "on trial" until it has brought the game to its first frames on this phone. The verdict
+// is a file next to the driver's .so: .started (after 120 presented frames) or .start_failed (the reason, written
+// here before stopping). A trial that ends with neither (a crash inside the driver) is rolled back by the launcher too.
+static void driver_mark(const char *file, const char *text) {
+    const char *drv = getenv("LARECOMP_GPU_DRIVER");
+    const char *slash = drv ? strrchr(drv, '/') : NULL;
+    if (!slash || slash == drv) return;
+    char path[600];
+    if (snprintf(path, sizeof path, "%.*s/%s", (int)(slash - drv), drv, file) >= (int)sizeof path) return;
+    FILE *f = fopen(path, "w");
+    if (!f) { LOG("[vk] cannot write %s: %s\n", path, strerror(errno)); return; }
+    fputs(text, f);
+    fclose(f);
+}
+
+static void vk_driver_started(void) {
+    const char *drv = getenv("LARECOMP_GPU_DRIVER");
+    if (!drv || !*drv) return;
+    driver_mark(".started", "120 frames presented\n");
+    LOG("[vk] custom GPU driver started the game (120 frames): %s\n", drv);
+}
+
+static void __attribute__((noreturn, format(printf, 1, 2))) driver_refused(const char *fmt, ...) {
+    char msg[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof msg, fmt, ap);
+    va_end(ap);
+    LOG("FATAL: [vk] %s\n", msg);
+    driver_mark(".start_failed", msg);
+    fflush(stderr);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Let's Go Recomp - GPU driver", msg, NULL);
+    _exit(1);
+}
+
+// Resolve the loader: adrenotools + the custom driver when one is selected (and nothing else then), else the
+// system loader.
 static PFN_vkGetInstanceProcAddr load_gipa(void) {
 #ifdef __ANDROID__
     const char *drv = getenv("LARECOMP_GPU_DRIVER");
     const char *libdir = getenv("LARECOMP_NATIVE_LIB_DIR");
-    if (drv && *drv && libdir && *libdir) {
+    if (drv && *drv) {
         // Wonder pattern: verify the driver .so is readable before calling adrenotools.
-        if (access(drv, R_OK) != 0) {
-            LOG("[vk] custom GPU driver %s not readable (%s), using system driver\n", drv, strerror(errno));
-        } else {
-        // drv = "<dir>/<lib>.so": adrenotools wants the dir and the bare name separately.
+        if (access(drv, R_OK) != 0)
+            driver_refused("The selected GPU driver cannot be read (%s): %s\n\nImport it again, or choose the system "
+                           "driver in the launcher.", strerror(errno), drv);
+        if (!libdir || !*libdir) driver_refused("The selected GPU driver %s cannot be loaded: no native library "
+                                                "directory (LARECOMP_NATIVE_LIB_DIR).", drv);
+        // drv = "<dir>/<lib>.so": adrenotools wants the dir (with its trailing slash) and the bare name separately.
         const char *slash = strrchr(drv, '/');
-        if (slash && slash[1]) {
-            char dir[512];
-            size_t dl = (size_t)(slash - drv);
-            // BOTW pattern: dir with trailing slash (adrenotools expects "dir/" not "dir")
-            if (dl + 1 < sizeof dir) {
-                memcpy(dir, drv, dl);
-                dir[dl] = '/';
-                dir[dl + 1] = 0;
-                void *h = adrenotools_open_libvulkan(RTLD_NOW | RTLD_LOCAL, ADRENOTOOLS_DRIVER_CUSTOM,
-                                                     NULL, libdir, dir, slash + 1, NULL, NULL);
-                if (h) {
-                    void *g = dlsym(h, "vkGetInstanceProcAddr");
-                    if (g) {
-                        LOG("[vk] custom GPU driver via adrenotools: %s\n", drv);
-                        return (PFN_vkGetInstanceProcAddr)g;
-                    }
-                    LOG("[vk] custom GPU driver %s loaded but vkGetInstanceProcAddr not found: %s\n", drv, dlerror());
-                } else {
-                    // v0079 Path 1: dlerror() is often NULL from adrenotools (its 5 nullptr
-                    // returns don't set it). Log the parameters so the failure is diagnosable.
-                    const char *e = dlerror();
-                    LOG("[vk] custom GPU driver %s failed to load via adrenotools: %s (dir=%s name=%s hookLibDir=%s)\n",
-                        drv, e ? e : "(adrenotools returned NULL without dlerror — likely linkernsbypass or hook install failure)",
-                        dir, slash + 1, libdir);
-                }
-                LOG("[vk] using the system driver\n");
-            }
+        char dir[512];
+        size_t dl = slash ? (size_t)(slash - drv) : 0;
+        if (!slash || !slash[1] || dl + 2 > sizeof dir) driver_refused("Invalid GPU driver path: %s", drv);
+        memcpy(dir, drv, dl);
+        dir[dl] = '/';
+        dir[dl + 1] = 0;
+        void *h = adrenotools_open_libvulkan(RTLD_NOW | RTLD_LOCAL, ADRENOTOOLS_DRIVER_CUSTOM, NULL, libdir, dir,
+                                             slash + 1, NULL, NULL);
+        if (!h) {
+            // dlerror() is often NULL here: adrenotools has return paths that do not set it.
+            const char *e = dlerror();
+            driver_refused("The selected GPU driver failed to load: %s\n\n%s\n\nIt may not be made for this GPU. "
+                           "Import another one, or choose the system driver in the launcher.", drv,
+                           e ? e : "adrenotools returned no library (no dlerror)");
         }
-        } // end access check
+        void *g = dlsym(h, "vkGetInstanceProcAddr");
+        if (!g) driver_refused("The selected GPU driver %s has no vkGetInstanceProcAddr.", drv);
+        LOG("[vk] custom GPU driver via adrenotools: %s\n", drv);
+        return (PFN_vkGetInstanceProcAddr)g;
     }
+    LOG("[vk] system GPU driver (no custom driver selected)\n");
 #endif
     // System loader: the linked libvulkan entry point. (The plain identifier is macro-redirected
     // to g_vkd by vk_dispatch.h, so resolve it explicitly from the loaded libvulkan.)
@@ -102,7 +135,7 @@ static void load_one(const char *name, void **slot) {
 
 // The vk_* macros from vk_dispatch.h (vkCreateInstance -> g_vkd.vkCreateInstance) must NOT
 // expand inside the fill code below, or VKFN(vkCreateInstance) becomes &g_vkd.g_vkd.vkCreateInstance.
-// Undefine them here; the call sites (other files) still get the macros from vk_dispatch.h.
+// Undefine them only while defining and filling the table; restore them before any call sites.
 #undef vkCreateInstance
 #undef vkDestroyInstance
 #undef vkEnumerateInstanceExtensionProperties
@@ -275,6 +308,15 @@ static void load_one(const char *name, void **slot) {
 #undef vkWaitForFences
 
 #define VKFN(f) load_one(#f, (void **)&g_vkd.f)
+VkDispatch g_vkd;
+
+// C trampolines also serve consumers which load functions outside the dispatch table.
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_loader_instance_proc(VkInstance instance, const char *name) {
+    return g_gipa(instance, name);
+}
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_loader_device_proc(VkDevice device, const char *name) {
+    return g_vkd.vkGetDeviceProcAddr(device, name);
+}
 static void load_dispatch_global(void) {   // before the instance exists (instance = VK_NULL_HANDLE)
     VKFN(vkCreateInstance);
     VKFN(vkEnumerateInstanceExtensionProperties);
@@ -417,10 +459,27 @@ static void load_dispatch_device(void) {   // after vkCreateDevice (device comma
     VKFD(vkCmdExecuteCommands);
 #undef VKFD
 }
-#endif  // LETSGO_ADRENOTOOLS (pausado)
+#undef VKFN
+#include "vk_dispatch_defs.h"
+#endif  // LETSGO_ADRENOTOOLS
 
 // Accessor for surface recovery
 SDL_Window *vk_sdl_window(void) { return window; }
+
+// Use the selected loader for both initial creation and surface recovery.
+static bool create_surface(void) {
+#ifdef LETSGO_ADRENOTOOLS
+    extern ANativeWindow *letsgo_get_native_window(void);
+    ANativeWindow *nw = letsgo_get_native_window();
+    if (!nw) return SDL_SetError("Android native window is not available");
+    VkAndroidSurfaceCreateInfoKHR ci = {.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR, .window = nw};
+    VkResult r = vkCreateAndroidSurfaceKHR(g_vk.inst, &ci, NULL, &g_vk.surface);
+    if (r != VK_SUCCESS) return SDL_SetError("vkCreateAndroidSurfaceKHR: %d", r);
+    return true;
+#else
+    return SDL_Vulkan_CreateSurface(window, g_vk.inst, NULL, &g_vk.surface);
+#endif
+}
 
 // ================================================================== instance / device
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT sev, VkDebugUtilsMessageTypeFlagsEXT type,
@@ -493,13 +552,34 @@ static void pick_device(void) {
         if ((int)i == want) score = 100;
         if (score > best_score) { best_score = score; best = (int)i; }
     }
-    if (best < 0) FATAL("no Vulkan 1.3 device\n");
+    if (best < 0) {
+#if defined(__ANDROID__) && defined(LETSGO_ADRENOTOOLS)
+        // Typically a phone whose system driver stops at Vulkan 1.1/1.2 (Adreno 730 on Android 16: 1.1): only an
+        // imported Turnip driver can run the game there.
+        if (!getenv("LARECOMP_GPU_DRIVER") || !*getenv("LARECOMP_GPU_DRIVER"))
+            driver_refused("This phone's system GPU driver does not offer Vulkan 1.3, which the game needs.\n\n"
+                           "Import a Turnip driver made for this GPU in the launcher, then select it.");
+        driver_refused("The selected GPU driver does not offer a Vulkan 1.3 device on this GPU.\n\n%s\n\n"
+                       "Import a driver made for this GPU.", getenv("LARECOMP_GPU_DRIVER"));
+#endif
+        FATAL("no Vulkan 1.3 device\n");
+    }
     g_vk.phys = pd[best];
     free(pd);
     vkGetPhysicalDeviceProperties(g_vk.phys, &g_vk.props);
     LOG("[vk] active GPU: %s (vendor 0x%04x, device 0x%04x, driver v%u.%u.%u)\n",
         g_vk.props.deviceName, g_vk.props.vendorID, g_vk.props.deviceID,
         VK_VERSION_MAJOR(g_vk.props.driverVersion), VK_VERSION_MINOR(g_vk.props.driverVersion), VK_VERSION_PATCH(g_vk.props.driverVersion));
+#ifdef LETSGO_ADRENOTOOLS
+    // Driver properties are a pNext query, not a standalone Vulkan entry point.
+    PFN_vkGetPhysicalDeviceProperties2 props2 =
+        (PFN_vkGetPhysicalDeviceProperties2)g_gipa(g_vk.inst, "vkGetPhysicalDeviceProperties2");
+    if (!props2) FATAL("vkGetPhysicalDeviceProperties2 not found\n");
+    VkPhysicalDeviceDriverProperties driver = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+    VkPhysicalDeviceProperties2 props = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, .pNext = &driver};
+    props2(g_vk.phys, &props);
+    LOG("[vk] active driver: %s (driverID=%u, %s)\n", driver.driverName, driver.driverID, driver.driverInfo);
+#endif
     uint32_t nq = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(g_vk.phys, &nq, NULL);
     VkQueueFamilyProperties *qp = calloc(nq, sizeof *qp);
@@ -628,10 +708,18 @@ static void create_device(void) {
     VkDeviceCreateInfo di = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, .pNext = &f, .queueCreateInfoCount = 1,
                              .pQueueCreateInfos = &qi, .enabledExtensionCount = n_ext, .ppEnabledExtensionNames = ext};
     VK_CHECK(vkCreateDevice(g_vk.phys, &di, NULL, &g_vk.dev));
+#ifdef LETSGO_ADRENOTOOLS
+    load_dispatch_device();  // before the first device command or allocator call
+#endif
     vkGetDeviceQueue(g_vk.dev, g_vk.qfam, 0, &g_vk.queue);
 
     VmaAllocatorCreateInfo ai = {.physicalDevice = g_vk.phys, .device = g_vk.dev, .instance = g_vk.inst,
                                  .vulkanApiVersion = VK_API_VERSION_1_3};
+#ifdef LETSGO_ADRENOTOOLS
+    // The first two fields are the loader callbacks; avoid macro-expanded field names.
+    VmaVulkanFunctions functions = {vk_loader_instance_proc, vk_loader_device_proc};
+    ai.pVulkanFunctions = &functions;
+#endif
     VK_CHECK(vmaCreateAllocator(&ai, &g_vk.vma));
 
     VkSemaphoreTypeCreateInfo st = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
@@ -842,7 +930,7 @@ static void recover_lost_surface(void) {
     extern SDL_Window *vk_sdl_window(void);
     SDL_Window *window = vk_sdl_window();
     if (window) {
-        if (!SDL_Vulkan_CreateSurface(window, g_vk.inst, NULL, &g_vk.surface)) {
+        if (!create_surface()) {
             LOG("[vk] surface recovery FAILED: %s (waiting for window)\n", SDL_GetError());
             g_vk.present_state = PRESENT_WAITING_FOR_WINDOW;
             return;
@@ -1269,6 +1357,7 @@ void backend_present(NvnTexture *t) {
     frames++;
     total_frames++;
     g_frame_counter++;
+    if (total_frames == 120) vk_driver_started();
     {   // Opt-in game-present intervals (not the extra menu image shown by the 60 fps mode).
         static FILE *csv;
         static uint64_t previous;
@@ -1440,30 +1529,12 @@ void ui_window_init(void) {
     create_instance();
 #ifdef LETSGO_ADRENOTOOLS
     load_dispatch_instance();
-    // Create the Android surface through our own loader (not SDL's): with a custom
-    // Turnip driver, SDL's vkGetInstanceProcAddr would resolve against the system
-    // driver and mismatch the Turnip-created instance.
-    // (SDL3 removed SDL_syswm.h; the ANativeWindow comes via JNI from SDLActivity.)
-    extern ANativeWindow *letsgo_get_native_window(void);
-    {
-        ANativeWindow *nw = letsgo_get_native_window();
-        if (!nw) FATAL("letsgo_get_native_window: no ANativeWindow (is the Activity created?)\n");
-        VkAndroidSurfaceCreateInfoKHR sci = {.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
-                                             .window = nw};
-        VkResult sr = vkCreateAndroidSurfaceKHR(g_vk.inst, &sci, NULL, &g_vk.surface);
-        if (sr != VK_SUCCESS) FATAL("vkCreateAndroidSurfaceKHR: %d\n", sr);
-        LOG("[vk] Android surface created via custom loader\n");
-    }
-#else
-    if (!SDL_Vulkan_CreateSurface(window, g_vk.inst, NULL, &g_vk.surface)) FATAL("SDL_Vulkan_CreateSurface: %s\n", SDL_GetError());
 #endif
+    if (!create_surface()) FATAL("Vulkan surface creation: %s\n", SDL_GetError());
     // MISSÃO A v0065: inicializa máquina de estados
     g_vk.present_state = PRESENT_READY;
     pick_device();
     create_device();
-#ifdef LETSGO_ADRENOTOOLS
-    load_dispatch_device();
-#endif
     create_swapchain();
     vk_exec_init();
     vk_shaders_init();

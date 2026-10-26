@@ -24,6 +24,10 @@ public class LetsGoLauncherActivity extends Activity {
     private static final String PREFS = "letsgo";
     private TextView status;
     private Button play, pick, forget, access, rebuild;
+    private TextView drvDevice;
+    private TextView drvStatus;
+    private GpuInfo gpu;            // detected in the background at start
+    private boolean driverBusy;     // a check or a download is running
 
     /** The user-picked game folder, or null if not set (GameDir: kept across app updates). */
     public static String gameDir(android.content.Context ctx) {
@@ -156,6 +160,10 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(log, llp);
 
         // ---- GPU driver (Turnip via adrenotools, like the Wonder port) ----
+        // Nothing is shipped in the APK: the launcher detects the phone and, when asked, downloads the package the
+        // published rules recommend for it from the packager's GitHub releases (DriverCatalog), checks its sha256,
+        // and puts it on trial until it has brought the game to its first frames (GpuDrivers). Importing a .zip by
+        // hand stays (no network, or a preferred build).
         android.widget.TextView drvTitle = new android.widget.TextView(this);
         drvTitle.setText("Driver GPU (Turnip)");
         drvTitle.setTextSize(16);
@@ -163,38 +171,40 @@ public class LetsGoLauncherActivity extends Activity {
         drvTitle.setPadding(0, dp(16), 0, dp(4));
         root.addView(drvTitle, lp(-1, -2));
 
-        final android.widget.TextView drvStatus = new android.widget.TextView(this);
+        drvDevice = new android.widget.TextView(this);
+        drvDevice.setTextSize(12);
+        drvDevice.setTextColor(Color.rgb(150, 160, 170));
+        drvDevice.setText("Detectando o aparelho...");
+        root.addView(drvDevice, lp(-1, -2));
+
+        drvStatus = new android.widget.TextView(this);
         drvStatus.setTextSize(13);
         drvStatus.setTextColor(Color.rgb(180, 190, 200));
         root.addView(drvStatus, lp(-1, -2));
-
-        final Runnable refreshDrivers = new Runnable() {
+        refreshDrivers();
+        new Thread(new Runnable() {
             @Override public void run() {
-                GpuDrivers.Driver sel = GpuDrivers.selected(LetsGoLauncherActivity.this);
-                StringBuilder sb = new StringBuilder();
-                if (sel != null) {
-                    sb.append("Em uso: ").append(sel.name).append(" (").append(sel.driverVersion).append(")\n");
-                } else {
-                    sb.append("Em uso: driver do sistema\n");
-                }
-                java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(LetsGoLauncherActivity.this);
-                if (all.isEmpty()) {
-                    sb.append("Nenhum driver Turnip instalado.");
-                } else {
-                    sb.append("Instalados: ");
-                    for (int i = 0; i < all.size(); i++) {
-                        if (i > 0) sb.append(", ");
-                        sb.append(all.get(i).name);
+                final GpuInfo g = GpuInfo.detect();
+                android.util.Log.i("lasrecomp", "[gpu] " + g);
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        gpu = g;
+                        drvDevice.setText(g.summary());
                     }
-                }
-                drvStatus.setText(sb.toString());
+                });
             }
-        };
-        refreshDrivers.run();
+        }, "gpu-detect").start();
 
-        // Install the bundled Turnip on first run (like Wonder).
-        GpuDrivers.installBundled(this);
-        refreshDrivers.run();
+        Button autoDrv = new Button(this);
+        autoDrv.setText("Baixar o driver recomendado para este aparelho");
+        autoDrv.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                recommendDriver(false);
+            }
+        });
+        LinearLayout.LayoutParams adlp = lp(-1, -2);
+        adlp.topMargin = dp(8);
+        root.addView(autoDrv, adlp);
 
         Button importDrv = new Button(this);
         importDrv.setText("Importar driver Turnip (.zip)");
@@ -206,28 +216,25 @@ public class LetsGoLauncherActivity extends Activity {
                 startActivityForResult(i, REQ_IMPORT_DRIVER);
             }
         });
-        LinearLayout.LayoutParams idlp = lp(-1, -2);
-        idlp.topMargin = dp(8);
-        root.addView(importDrv, idlp);
+        root.addView(importDrv, lp(-1, -2));
 
         Button useSystem = new Button(this);
         useSystem.setText("Usar driver do sistema");
         useSystem.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 GpuDrivers.select(LetsGoLauncherActivity.this, null);
-                refreshDrivers.run();
+                refreshDrivers();
                 android.widget.Toast.makeText(LetsGoLauncherActivity.this,
                     "Driver do sistema selecionado.", android.widget.Toast.LENGTH_SHORT).show();
             }
         });
         root.addView(useSystem, lp(-1, -2));
 
-        // Long-press a driver name in the status to select it (simple UI).
+        // Tap the status to cycle through the installed drivers (simple selection UI).
         drvStatus.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(LetsGoLauncherActivity.this);
                 if (all.isEmpty()) return;
-                // Cycle to the next driver (simple single-tap selection).
                 GpuDrivers.Driver sel = GpuDrivers.selected(LetsGoLauncherActivity.this);
                 int idx = -1;
                 for (int i = 0; i < all.size(); i++) {
@@ -235,7 +242,7 @@ public class LetsGoLauncherActivity extends Activity {
                 }
                 GpuDrivers.Driver next = all.get((idx + 1) % all.size());
                 GpuDrivers.select(LetsGoLauncherActivity.this, next);
-                refreshDrivers.run();
+                refreshDrivers();
                 android.widget.Toast.makeText(LetsGoLauncherActivity.this,
                     "Driver selecionado: " + next.name, android.widget.Toast.LENGTH_SHORT).show();
             }
@@ -387,12 +394,6 @@ public class LetsGoLauncherActivity extends Activity {
         refreshStatus();
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // the state can change outside the app: files copied, all-files access granted in Settings, card removed
-        refreshStatus();
-    }
 
     /** The system folder picker, opened on the current folder when there is one. */
     private void pickGameDir() {
@@ -448,6 +449,225 @@ public class LetsGoLauncherActivity extends Activity {
 
     private static String mib(long b) {
         return String.format(java.util.Locale.ROOT, "%.0f MiB", b / 1048576.0);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Verdict on a driver that was on trial: the game got to its first frames with it, or it did not and the
+        // launcher rolls it back (the driver that last worked here, or none: said so, never silently).
+        GpuDrivers.TrialOutcome t = GpuDrivers.checkTrial(this, LetsGoActivity.running);
+        if (t != null && t.ok) {
+            android.widget.Toast.makeText(this, "Driver " + t.driver.name + " funcionou neste aparelho.",
+                    android.widget.Toast.LENGTH_LONG).show();
+        } else if (t != null) {
+            showTrialFailure(t);
+        }
+        if (drvStatus != null) refreshDrivers();
+        // the state can change outside the app: files copied, all-files access granted in Settings, card removed
+        refreshStatus();
+    }
+
+    private void refreshDrivers() {
+        GpuDrivers.Driver sel = GpuDrivers.selected(this);
+        StringBuilder sb = new StringBuilder();
+        if (sel != null) {
+            sb.append("Em uso: ").append(sel.name);
+            if (!sel.driverVersion.isEmpty()) sb.append(" (").append(sel.driverVersion).append(")");
+            sb.append("\n  origem: ").append(sel.origin());
+            sb.append(sel.started ? " · já funcionou aqui" : " · ainda não testado: em teste no próximo Jogar");
+            sb.append("\n");
+        } else {
+            sb.append("Em uso: driver do sistema\n");
+        }
+        java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(this);
+        if (all.isEmpty()) {
+            sb.append("Nenhum driver Turnip instalado: baixe o recomendado ou importe um .zip.");
+        } else {
+            sb.append("Instalados (toque para trocar): ");
+            for (int i = 0; i < all.size(); i++) {
+                GpuDrivers.Driver d = all.get(i);
+                if (i > 0) sb.append(", ");
+                sb.append(d.name);
+                if (d.failed && !d.started) sb.append(" [não iniciou]");
+            }
+        }
+        drvStatus.setText(sb.toString());
+    }
+
+    private void showTrialFailure(GpuDrivers.TrialOutcome t) {
+        String now = t.restored != null
+                ? "Voltei para " + t.restored.name + ", que já funcionou neste aparelho."
+                : "Nenhum driver Turnip está selecionado agora: o próximo Jogar usaria o driver do sistema.";
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("O driver não iniciou o jogo")
+                .setMessage(t.driver.name + " (" + t.driver.origin() + ") não chegou às primeiras imagens do jogo "
+                        + "neste aparelho.\n\nMotivo: " + t.reason + "\n\n" + now
+                        + "\n\nEste pacote não será mais recomendado aqui. Você pode baixar o próximo da lista.")
+                .setPositiveButton("Baixar o próximo", new android.content.DialogInterface.OnClickListener() {
+                    @Override public void onClick(android.content.DialogInterface d, int w) {
+                        recommendDriver(true);
+                    }
+                })
+                .setNegativeButton("Fechar", null)
+                .show();
+    }
+
+    /** Detect, ask GitHub, and offer the package for this phone (never downloads before the player confirms). */
+    private void recommendDriver(final boolean afterFailure) {
+        if (driverBusy) return;
+        driverBusy = true;
+        drvStatus.setText("Consultando as publicações no GitHub...");
+        new Thread(new Runnable() {
+            @Override public void run() {
+                GpuInfo g = gpu != null ? gpu : GpuInfo.detect();
+                DriverCatalog.Check check = null;
+                String error = null;
+                try {
+                    check = DriverCatalog.fetch();
+                } catch (Exception e) {
+                    error = e.getMessage();
+                }
+                final GpuInfo fg = g;
+                final DriverCatalog.Check fc = check;
+                final String fe = error;
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        driverBusy = false;
+                        gpu = fg;
+                        drvDevice.setText(fg.summary());
+                        refreshDrivers();
+                        offerDriver(fg, fc, fe, afterFailure);
+                    }
+                });
+            }
+        }, "gpu-catalog").start();
+    }
+
+    private void offerDriver(final GpuInfo g, DriverCatalog.Check check, String error, boolean afterFailure) {
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this).setTitle("Driver recomendado");
+        if (check == null) {
+            b.setMessage("Não deu para consultar o GitHub: " + error
+                    + "\n\nSem rede, importe um .zip de driver pelo outro botão.")
+                    .setPositiveButton("OK", null).show();
+            return;
+        }
+        if (g.family == GpuInfo.Family.NOT_ADRENO) {
+            b.setMessage(g.summary() + "\n\nEste aparelho não tem GPU Adreno: drivers Turnip não se aplicam. "
+                    + "O jogo usa o driver do sistema.").setPositiveButton("OK", null).show();
+            return;
+        }
+        java.util.Set<String> bad = GpuDrivers.badPackages(this);
+        final java.util.List<DriverCatalog.Candidate> plan = new java.util.ArrayList<>(check.plan(g, bad));
+        boolean outsideRules = false;
+        if (plan.isEmpty()) {
+            plan.addAll(check.alternatives(g, bad));
+            outsideRules = !plan.isEmpty();
+        }
+        StringBuilder m = new StringBuilder();
+        m.append("Aparelho: ").append(g.summary()).append("\n");
+        m.append("Regras: ").append(check.rulesFromGitHub
+                ? "auto-drivers.json de github.com/Droid-Deck/Drivers-CI" : "tabela interna (regras do GitHub ilegíveis)");
+        m.append(" → ").append(android.text.TextUtils.join(", ", check.preferences(g))).append("\n");
+        if (!check.failedSources.isEmpty())
+            m.append("Sem resposta de: ").append(android.text.TextUtils.join(", ", check.failedSources)).append("\n");
+        if (plan.isEmpty()) {
+            b.setMessage(m + "\nNenhum pacote disponível para este aparelho"
+                    + (bad.isEmpty() ? "." : " além dos que já falharam aqui.")
+                    + " Importe um .zip, ou use o driver do sistema.").setPositiveButton("OK", null).show();
+            return;
+        }
+        if (outsideRules)
+            m.append("\nOs pacotes recomendados já falharam aqui. Fora da regra, para esta família de GPU:\n");
+        m.append("\nVai baixar:\n").append(plan.get(0).details());
+        if (plan.size() > 1) {
+            m.append("\n\nSe o download falhar, depois: ");
+            for (int i = 1; i < plan.size(); i++) m.append(i > 1 ? ", " : "").append(plan.get(i).title());
+        }
+        m.append("\n\nO driver fica em teste até o jogo mostrar as primeiras imagens; se não iniciar, o app volta "
+                + "atrás e propõe o próximo.");
+        b.setMessage(m.toString())
+                .setPositiveButton("Baixar e usar", new android.content.DialogInterface.OnClickListener() {
+                    @Override public void onClick(android.content.DialogInterface d, int w) {
+                        downloadPlan(plan, 0, new StringBuilder());
+                    }
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    /** Download, verify and install plan[i]; on failure move to plan[i+1] (the player asked for a download). */
+    private void downloadPlan(final java.util.List<DriverCatalog.Candidate> plan, final int i, final StringBuilder errors) {
+        if (i >= plan.size()) {
+            driverBusy = false;
+            refreshDrivers();
+            new android.app.AlertDialog.Builder(this).setTitle("Download do driver falhou")
+                    .setMessage(errors + "\nNada foi alterado: o driver em uso continua o mesmo.")
+                    .setPositiveButton("OK", null).show();
+            return;
+        }
+        driverBusy = true;
+        final DriverCatalog.Candidate c = plan.get(i);
+        drvStatus.setText("Baixando " + c.title() + "...");
+        new Thread(new Runnable() {
+            @Override public void run() {
+                GpuDrivers.ImportResult r = null;
+                String err = null;
+                // Already installed (same package): no download.
+                for (GpuDrivers.Driver d : GpuDrivers.list(LetsGoLauncherActivity.this))
+                    if (c.sha256.equals(d.packageSha256())) r = new GpuDrivers.ImportResult(d, null);
+                if (r == null) {
+                    java.io.File zip = null;
+                    try {
+                        zip = DriverCatalog.download(LetsGoLauncherActivity.this, c, new DriverCatalog.Progress() {
+                            long shown = -1;
+                            @Override public void update(final long done, final long total) {
+                                final long pct = total > 0 ? 100 * done / total : -1;
+                                if (pct == shown) return;
+                                shown = pct;
+                                runOnUiThread(new Runnable() {
+                                    @Override public void run() {
+                                        drvStatus.setText("Baixando " + c.title() + (pct >= 0 ? " " + pct + "%" : ""));
+                                    }
+                                });
+                            }
+                        });
+                        org.json.JSONObject src = new org.json.JSONObject()
+                                .put("key", c.key).put("repo", c.repo).put("tag", c.tag).put("asset", c.asset)
+                                .put("url", c.url).put("sha256", c.sha256).put("publishedAt", c.publishedAt);
+                        r = GpuDrivers.installZip(LetsGoLauncherActivity.this, zip, src);
+                    } catch (Exception e) {
+                        err = e.getMessage();
+                    } finally {
+                        if (zip != null) zip.delete();
+                    }
+                }
+                if (r != null && r.error != null) { err = r.error; r = null; }
+                final GpuDrivers.ImportResult fr = r;
+                final String fe = err;
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (fr == null) {
+                            android.util.Log.w("lasrecomp", "[gpu] " + c.asset + ": " + fe);
+                            errors.append(c.title()).append(": ").append(fe).append("\n");
+                            if (i + 1 < plan.size())
+                                android.widget.Toast.makeText(LetsGoLauncherActivity.this, c.title() + " falhou ("
+                                        + fe + "); tentando " + plan.get(i + 1).title(),
+                                        android.widget.Toast.LENGTH_LONG).show();
+                            downloadPlan(plan, i + 1, errors);
+                            return;
+                        }
+                        driverBusy = false;
+                        GpuDrivers.select(LetsGoLauncherActivity.this, fr.driver);
+                        refreshDrivers();
+                        android.widget.Toast.makeText(LetsGoLauncherActivity.this, "Driver instalado e verificado "
+                                + "(sha256 conferido): " + fr.driver.name
+                                + (fr.driver.started ? "" : ". Será testado no próximo Jogar."),
+                                android.widget.Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }, "gpu-download").start();
     }
 
     private void refreshStatus() {
@@ -560,11 +780,11 @@ public class LetsGoLauncherActivity extends Activity {
                         android.widget.Toast.LENGTH_LONG).show();
             } else {
                 GpuDrivers.select(this, r.driver);
-                android.widget.Toast.makeText(this, "Driver instalado: " + r.driver.name,
-                        android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(this, "Driver instalado: " + r.driver.name
+                        + (r.driver.started ? "" : " (será testado no próximo Jogar)"),
+                        android.widget.Toast.LENGTH_LONG).show();
             }
-            // Refresh the driver status (recreate is simplest).
-            recreate();
+            refreshDrivers();
         }
     }
 

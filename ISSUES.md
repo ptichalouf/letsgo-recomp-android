@@ -63,15 +63,43 @@ se for bom, deixa como está.
 - `gcopy` é **só leitura** — escritas em memória global (STG) continuam descartadas.
 - A hipótese "layout escrito via STG" foi investigada e refutada (sonda de estabilidade v0087).
 
-## 2. Driver Turnip não assume (pendente)
+## 2. Driver Turnip (nenhum driver vem no APK; o app baixa o certo para o aparelho)
 
-- O adrenotools localiza o arquivo Turnip (`turnip-8g2` ou `turnip-v26-3-0-r6-oneui`),
-  mas a GPU ativa continua o Adreno do sistema (driver v512.676.73).
-- Hipótese: falha do `linkernsbypass` no Android 16.
-- O `ADT_LOG` foi adicionado ao fonte do adrenotools mas **nunca compilado** — o APK usa
-  `libadrenotools.so` prebuilt.
-- Turnip é o único caminho com host import (resolveria o texto sem `gcopy`), mas é mais
-  lento no Let's Go (18–22 fps vs 30 do sistema, medição antiga).
+- Causa: as macros de dispatch eram canceladas em `device.c` e nunca restauradas, então o jogo
+  desenhava com o driver do sistema mesmo com o Turnip carregado (corrigido pelo PR #3).
+- O APK não traz nenhum driver. No lançador, "Baixar o driver recomendado para este aparelho":
+  - detecta a GPU (`/sys/class/kgsl/kgsl-3d0/gpu_model`, senão o SoC), a família (A6XX, A7XX,
+    A7XX_LOW, A8XX), a API do Android, o caso Samsung + Adreno 740 e a versão do driver do sistema;
+  - lê as regras publicadas pelo DroidDeck (`auto-drivers.json` de github.com/Droid-Deck/Drivers-CI;
+    tabela interna equivalente se o arquivo não puder ser lido): a primeira regra que bate dá a
+    lista de preferência (Adreno 830 → `wn-b`, Adreno 740 Samsung → `banner-8g2-oneui`,
+    Adreno 730 → `banner`, Adreno 840 → `dd-turnip` e depois `wn-b`...);
+  - pega o pacote mais recente de cada chave nas publicações do GitHub (Banners-Turnip, WinNative,
+    DroidDeck). Os endereços vêm só da API de publicações (nunca do arquivo de regras), apontam para
+    `github.com/<repo>/releases/download/` e os redirecionamentos só podem levar a
+    `*.githubusercontent.com`;
+  - mostra nome, origem, versão, tamanho e sha256 e só baixa depois da confirmação. O arquivo tem de
+    bater com o sha256 publicado pelo GitHub para esse asset; no pacote DroidDeck (`android/` +
+    `manifest.json`), a biblioteca tem de bater também com o sha256 do manifest;
+  - se o download ou a verificação falhar, passa ao próximo da lista; nada muda se todos falharem.
+- O pacote fica **em teste** até o jogo mostrar as primeiras imagens com ele: o runtime grava
+  `.started` ao lado da `.so` depois de 120 quadros, ou `.start_failed` (com o motivo) quando recusa
+  o driver. De volta ao lançador, um teste que terminou sem `.started` (recusa, ou o app fechou/caiu)
+  é desfeito: volta o driver que já funcionou no aparelho, ou nenhum, e o lançador diz isso numa
+  janela, com o motivo, propondo baixar o próximo da lista. O pacote que falhou não é mais
+  recomendado nesse aparelho. Sair do jogo antes das primeiras imagens não conta como falha.
+- "Importar driver Turnip (.zip)" continua: aparelho sem rede, ou um build preferido. Aceita o
+  formato AdrenoTools (meta.json + .so na raiz) e o pacote DroidDeck (usa só a parte `android/`).
+- Os pacotes vêm direto do GitHub de quem os publica (que oferece o código-fonte Mesa
+  correspondente); não passam pelos nossos servidores nem pelo APK.
+- Para confirmar o driver em uso: `[vk] active driver: turnip Mesa driver (driverID=18, ...)`
+  no `lasrecomp.log`; sem driver escolhido, `[vk] system GPU driver (no custom driver selected)`.
+- Um driver escolhido que não carrega (arquivo ilegível, adrenotools falha, sem dispositivo
+  Vulkan 1.3) **para o app com uma mensagem**: o jogo nunca volta sozinho ao driver do sistema.
+  O mesmo vale para um driver do sistema sem Vulkan 1.3 (Adreno 730 no Android 16: Vulkan 1.1),
+  onde só um Turnip roda o jogo.
+- Lançador e jogo dividem o mesmo processo: `LARECOMP_GPU_DRIVER` é apagada quando o driver
+  do sistema é escolhido, senão o driver de um lançamento anterior continuava ativo.
 
 ## 3. Atraso de ~2s na primeira abertura pós-v0078 (provável custo único)
 

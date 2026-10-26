@@ -10,6 +10,9 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34" />
 
+    <!-- Downloading the GPU driver package recommended for this phone (GitHub releases, on the player's request) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Full filesystem access: the game reads exefs/romfs via direct fopen() -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
