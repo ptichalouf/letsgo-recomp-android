@@ -341,6 +341,17 @@ public class LetsGoLauncherActivity extends Activity {
                 getSharedPreferences("letsgo", MODE_PRIVATE).edit().putBoolean("touch", c).apply();
             }
         });
+        // default: minimal controls in the black bars (A, B, X, "..." + floating stick); checked: the old full layout
+        final CheckBox touchFull = new CheckBox(this);
+        touchFull.setText("Layout touch completo (antigo)");
+        touchFull.setTextColor(Color.rgb(200, 210, 220));
+        touchFull.setChecked("classic".equals(getSharedPreferences("letsgo", MODE_PRIVATE).getString("touch_layout", "minimal")));
+        root.addView(touchFull, lp(-1, -2));
+        touchFull.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(android.widget.CompoundButton b, boolean c) {
+                getSharedPreferences("letsgo", MODE_PRIVATE).edit().putString("touch_layout", c ? "classic" : "minimal").apply();
+            }
+        });
 
         // load saved settings
         String[] ini = readIni();

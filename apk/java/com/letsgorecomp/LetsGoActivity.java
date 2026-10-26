@@ -174,10 +174,14 @@ public class LetsGoActivity extends SDLActivity {
         super.onCreate(savedInstanceState);
         // Apply fullscreen AFTER super.onCreate (SDLActivity resets UI visibility)
         applyFullscreen();
-        // Touch gamepad overlay (Xbox 360 layout) - toggleable in launcher settings
-        boolean touchEnabled = getSharedPreferences("letsgo", MODE_PRIVATE).getBoolean("touch", true);
+        // Touch controls - toggleable in launcher settings. Default: the minimal layout in the black bars
+        // (TouchControls); "Layout completo" in the launcher brings back the old full one (GamepadOverlay).
+        android.content.SharedPreferences prefs = getSharedPreferences("letsgo", MODE_PRIVATE);
+        boolean touchEnabled = prefs.getBoolean("touch", true);
         if (touchEnabled) {
-            addContentView(new GamepadOverlay(this),
+            boolean classic = "classic".equals(prefs.getString("touch_layout", "minimal"));
+            android.util.Log.i("lasrecomp", "[touch] layout " + (classic ? "classic" : "minimal"));
+            addContentView(classic ? new GamepadOverlay(this) : new TouchControls(this),
                 new android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT));
