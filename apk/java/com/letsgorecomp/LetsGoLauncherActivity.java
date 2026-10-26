@@ -339,6 +339,19 @@ public class LetsGoLauncherActivity extends Activity {
         wild.setTextColor(Color.rgb(200, 210, 220));
         root.addView(wild, lp(-1, -2));
 
+        // The phone's motion sensor aims the Poke Ball throws, like the Switch in handheld mode (GyroAim.java).
+        // Off by default: the touch controls aim as before; checked, both work together.
+        final CheckBox gyroAim = new CheckBox(this);
+        gyroAim.setText("Mirar com o giroscópio (inclinar o telefone)");
+        gyroAim.setTextColor(Color.rgb(200, 210, 220));
+        gyroAim.setChecked(getSharedPreferences("letsgo", MODE_PRIVATE).getBoolean("gyro", false));
+        root.addView(gyroAim, lp(-1, -2));
+        gyroAim.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
+            @Override public void onCheckedChanged(android.widget.CompoundButton b, boolean c) {
+                getSharedPreferences("letsgo", MODE_PRIVATE).edit().putBoolean("gyro", c).apply();
+            }
+        });
+
         final CheckBox touch = new CheckBox(this);
         touch.setText(Txt.t("touch", "Controles touch na tela"));
         touch.setTextColor(Color.rgb(200, 210, 220));

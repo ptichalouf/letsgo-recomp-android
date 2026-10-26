@@ -211,6 +211,17 @@ public class LetsGoActivity extends SDLActivity {
         // Fullscreen handled by theme + SDL_SetWindowFullscreen (like Wonder).
         // No manual intervention to avoid conflicts with SDLActivity.
         setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        // the phone's motion sensor aims the Poke Balls (launcher setting, off by default: GyroAim.java)
+        if (gyro == null && GyroAim.enabled(this)) gyro = new GyroAim(this);
+        if (gyro != null) gyro.resume();
+    }
+
+    private GyroAim gyro;
+
+    @Override
+    protected void onPause() {
+        if (gyro != null) gyro.pause();
+        super.onPause();
     }
 
     @Override
