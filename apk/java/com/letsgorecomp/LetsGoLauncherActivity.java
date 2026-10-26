@@ -20,14 +20,10 @@ import java.io.File;
 // (separate activity) and can still read the crashed run's logcat.
 public class LetsGoLauncherActivity extends Activity {
     private static final int REQ_GAME_DIR = 1001;
-    private static final int REQ_IMPORT_DIR = 1002;
-    private static final int REQ_IMPORT_DIR_FOLDER = 1003;
     private static final int REQ_IMPORT_DRIVER = 1004;
     private static final String PREFS = "letsgo";
     private TextView status;
     private Button play, pick, forget, access, rebuild;
-    private android.os.Handler importPoller;
-    private Runnable importPollTask;
 
     /** The user-picked game folder, or null if not set (GameDir: kept across app updates). */
     public static String gameDir(android.content.Context ctx) {
@@ -35,7 +31,8 @@ public class LetsGoLauncherActivity extends Activity {
     }
 
     /** The game folder's state (GameFolder.inspect): the chosen folder, or the app's own files when an in-app
-     *  import wrote there. */
+     *  import of an earlier version wrote there. The app does not import game packages: the player brings the
+     *  game already extracted (extracted/exefs/ + extracted/romfs/ or extracted/romfs.bin). */
     static GameFolder.Check gameFolder(android.content.Context ctx) {
         String dir = gameDir(ctx);
         File base = dir != null ? new File(dir) : ctx.getFilesDir();
@@ -92,14 +89,6 @@ public class LetsGoLauncherActivity extends Activity {
         play.setTextSize(18);
         play.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
-                // Never boot from a partial import: the game FATALs on missing exefs/main.
-                LetsGoImportJob ij = LetsGoImportJob.current();
-                if (ij != null && !ij.finished) {
-                    android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                        "Aguarde a importação terminar antes de jogar.",
-                        android.widget.Toast.LENGTH_LONG).show();
-                    return;
-                }
                 // Never launch into a native crash: without complete game data
                 // the runtime FATALs (see main.c boot()). Tell the user instead.
                 if (!gameDataReady(LetsGoLauncherActivity.this)) {
@@ -153,30 +142,6 @@ public class LetsGoLauncherActivity extends Activity {
             }
         });
         root.addView(forget, lp(-1, -2));
-
-        Button importBtn = new Button(this);
-        importBtn.setText("Importar jogo do NSP");
-        importBtn.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override public void onClick(android.view.View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                startActivityForResult(i, REQ_IMPORT_DIR);
-            }
-        });
-        LinearLayout.LayoutParams ilp = lp(-1, -2);
-        ilp.topMargin = dp(12);
-        root.addView(importBtn, ilp);
-
-        Button importFolderBtn = new Button(this);
-        importFolderBtn.setText("Importar NSP para pasta (sem .bin)");
-        importFolderBtn.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override public void onClick(android.view.View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                startActivityForResult(i, REQ_IMPORT_DIR_FOLDER);
-            }
-        });
-        LinearLayout.LayoutParams iflp = lp(-1, -2);
-        iflp.topMargin = dp(8);
-        root.addView(importFolderBtn, iflp);
 
         Button log = new Button(this);
         log.setText("Ver log");
@@ -476,9 +441,6 @@ public class LetsGoLauncherActivity extends Activity {
 
     private void refreshStatus() {
         if (status == null) return;
-        // If an import is running, the poller owns the status line.
-        LetsGoImportJob job = LetsGoImportJob.current();
-        if (job != null && !job.finished) { startImportPolling(); return; }
         String dir = gameDir(this);
         GameFolder.Check c = gameFolder(this);
         boolean needAccess = GameDir.needsAllFilesAccess(this, dir);
@@ -579,11 +541,6 @@ public class LetsGoLauncherActivity extends Activity {
             refreshStatus();
             if (path != null && !gameDataReady(this))
                 android.widget.Toast.makeText(this, status.getText(), android.widget.Toast.LENGTH_LONG).show();
-        } else if ((req == REQ_IMPORT_DIR || req == REQ_IMPORT_DIR_FOLDER) && res == RESULT_OK
-                && data != null && data.getData() != null) {
-            android.widget.Toast.makeText(this, "Pasta escolhida, iniciando...",
-                    android.widget.Toast.LENGTH_SHORT).show();
-            startImport(data.getData(), req == REQ_IMPORT_DIR_FOLDER);
         } else if (req == REQ_IMPORT_DRIVER && res == RESULT_OK
                 && data != null && data.getData() != null) {
             GpuDrivers.ImportResult r = GpuDrivers.importZip(this, data.getData());
@@ -598,51 +555,6 @@ public class LetsGoLauncherActivity extends Activity {
             // Refresh the driver status (recreate is simplest).
             recreate();
         }
-    }
-
-    /** Kick off the import job (folder = true: loose folder import, no romfs.bin). */
-    private void startImport(android.net.Uri uri, boolean folder) {
-        try {
-            getContentResolver().takePersistableUriPermission(uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        } catch (Exception ignored) {}
-        // Import into the game dir (or the app's private files if none picked yet).
-        String dir = gameDir(this);
-        File outDir = dir != null ? new File(dir) : getFilesDir();
-        status.setText("Iniciando importação para:\n" + outDir.getAbsolutePath());
-        LetsGoImportJob job = LetsGoImportJob.start(this, uri, outDir, folder);
-        if (job != null) startImportPolling();
-        else status.setText("Já há uma importação em andamento.");
-    }
-
-    /** Poll the import job and show progress in the status line. */
-    private void startImportPolling() {
-        if (importPoller == null) importPoller = new android.os.Handler();
-        if (importPollTask != null) importPoller.removeCallbacks(importPollTask);
-        importPollTask = new Runnable() {
-            @Override public void run() {
-                LetsGoImportJob job = LetsGoImportJob.current();
-                if (job == null || job.finished) {
-                    if (job != null) {
-                        if (job.error != null) status.setText("Erro na importação:\n" + job.error);
-                        else if (job.cancelled) status.setText("Importação cancelada.");
-                        else status.setText("Importação concluída em " +
-                                String.format("%.0f", job.seconds) + "s.\n" + job.containerName);
-                    }
-                    refreshStatus();
-                    return;
-                }
-                String pct = job.total > 0
-                        ? String.format(" %.0f%%", 100.0 * job.done / job.total)
-                        : "";
-                String txt = "Importando [" + job.phase + "]" + pct + "\n" + job.currentName;
-                if (!job.keysOk) txt = "Procurando prod.keys e NSP...";
-                status.setText(txt);
-                importPoller.postDelayed(this, 500);
-            }
-        };
-        importPoller.post(importPollTask);
     }
 
     private int dp(int v) {

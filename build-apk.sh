@@ -25,7 +25,6 @@ $BT/d8 --min-api 28 --lib $PLATFORM --output $OUT/dex \
 
 # 3. native libs (unversioned copies: the APK lib dir wants plain lib*.so names)
 cp $ROOT/build/apk-lib/*.so $OUT/lib/arm64-v8a/ 2>/dev/null
-cp $ROOT/build/liblgimport.so $OUT/lib/arm64-v8a/ 2>/dev/null
 cp $ROOT/deps/SDL3/build-android/libSDL3.so $OUT/lib/arm64-v8a/
 cp $ROOT/build/game/liblasgame.so $OUT/lib/arm64-v8a/ 2>/dev/null
 # FFmpeg shared libs: copy the .so files the runtime's DT_NEEDED references
