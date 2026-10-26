@@ -798,7 +798,20 @@ HLE_FUNC("_ZN2nn3hid25InitializeVibrationDeviceERKNS0_21VibrationDeviceHandleE",
 // SixAxisSensorState (0x60): +0 delta time ns, +8 sampling number, +0x10 acceleration (G), +0x1c angular velocity
 // (turns / s), +0x28 angle (turns), +0x34 direction (3x3: x, y, z axes), +0x58 attributes (bit 0 IsConnected).
 // LARECOMP_GYRO_TEST=x|y|z sweeps the yaw axis ±15 degrees (2 s period) to see which way the aim follows.
+// Android: the phone's own motion sensor turns it too (opt-in in the launcher, apk/java/.../GyroAim.java): Java sends
+// the phone's turn since its last sample (input_gyro_motion), added here like the mouse's motion.
 static double gyro_yaw, gyro_pitch;               // radians
+static _Atomic int64_t phone_acc_yaw, phone_acc_pitch;  // the phone's turn not yet applied, in microradians
+static _Atomic uint64_t six_axis_read_ns;         // when the game last read the sensor
+void input_gyro_motion(double yaw, double pitch) {  // radians: yaw > 0 = turned left, pitch > 0 = tilted up
+    atomic_fetch_add(&phone_acc_yaw, (int64_t)llround(yaw * 1e6));
+    atomic_fetch_add(&phone_acc_pitch, (int64_t)llround(pitch * 1e6));
+}
+// the phone's sensor is wanted: the game has the six-axis sensor started and read it in the last half second
+int input_gyro_wanted(void) {
+    uint64_t r = six_axis_read_ns;
+    return gyro_aiming && r && SDL_GetTicksNS() - r < 500000000ull;
+}
 static _Atomic uint64_t gyro_start_ns;            // when the game last started the sensor (aiming begins)
 static int gyro_yaw_axis = 2, gyro_pitch_axis = 0;
 static void mat_rot(double m[3][3], int axis, double a) {
@@ -827,6 +840,7 @@ static void six_axis_fill(uint8_t *s, int64_t sampling) {
     if (dt < 1e-4) dt = 1e-4;
     if (dt > 0.1) dt = 0.1;
     last_ns = now;
+    six_axis_read_ns = now;
     double py = gyro_yaw, pp = gyro_pitch;
     int yaw_axis = gyro_yaw_axis;
     if (test) {
@@ -839,6 +853,19 @@ static void six_axis_fill(uint8_t *s, int64_t sampling) {
         double k = g_settings.mouse_sens * M_PI / 180 / 1000;  // degrees per pixel
         gyro_yaw -= atomic_exchange(&mouse_acc_x, 0) * k;
         gyro_pitch -= atomic_exchange(&mouse_acc_y, 0) * k;
+        int64_t pyaw = atomic_exchange(&phone_acc_yaw, 0), ppitch = atomic_exchange(&phone_acc_pitch, 0);
+        gyro_yaw += pyaw * 1e-6;
+        gyro_pitch += ppitch * 1e-6;
+        static uint64_t phone_log_ns;  // (the phone's sensor reaches the game: every 2 s while it moves)
+        static double phone_yaw_sum, phone_pitch_sum;
+        phone_yaw_sum += fabs(pyaw * 1e-6), phone_pitch_sum += fabs(ppitch * 1e-6);
+        if ((pyaw || ppitch) && now - phone_log_ns > 2000000000ull) {
+            if (phone_log_ns)
+                LOG("[gyro] phone sensor: turned %.2f deg (yaw) %.2f deg (pitch) in %.1f s; virtual console at yaw %.1f pitch %.1f deg\n",
+                    phone_yaw_sum * 180 / M_PI, phone_pitch_sum * 180 / M_PI, (now - phone_log_ns) / 1e9,
+                    gyro_yaw * 180 / M_PI, gyro_pitch * 180 / M_PI);
+            phone_log_ns = now, phone_yaw_sum = phone_pitch_sum = 0;
+        }
         double lim = 80 * M_PI / 180;
         if (gyro_pitch > lim) gyro_pitch = lim;
         if (gyro_pitch < -lim) gyro_pitch = -lim;
@@ -876,6 +903,8 @@ HLE_FUNC("_ZN2nn3hid18StartSixAxisSensorERKNS0_19SixAxisSensorHandleE", hid_six_
     gyro_yaw = gyro_pitch = 0;
     atomic_store(&mouse_acc_x, 0);
     atomic_store(&mouse_acc_y, 0);
+    atomic_store(&phone_acc_yaw, 0);
+    atomic_store(&phone_acc_pitch, 0);
     extern uint64_t renderer_game_frame(void);
     LOG("[input] six-axis sensor started (frame %llu)\n", (unsigned long long)renderer_game_frame());
 }

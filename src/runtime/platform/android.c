@@ -388,6 +388,17 @@ JNIEXPORT void JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeSetStick(JNIEn
     (void)env; (void)cls;
     android_set_stick(stick, x, y);
 }
+// ---- JNI: the phone's motion sensor (apk/java/com/letsgorecomp/GyroAim.java) -> the virtual six-axis sensor ----
+extern void input_gyro_motion(double yaw, double pitch);
+extern int input_gyro_wanted(void);
+JNIEXPORT void JNICALL Java_com_letsgorecomp_GyroAim_nativeGyroMotion(JNIEnv *env, jclass cls, jdouble yaw, jdouble pitch) {
+    (void)env; (void)cls;
+    input_gyro_motion(yaw, pitch);
+}
+JNIEXPORT jboolean JNICALL Java_com_letsgorecomp_GyroAim_nativeGyroWanted(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    return input_gyro_wanted() ? JNI_TRUE : JNI_FALSE;
+}
 extern double g_current_fps, g_frame_ms;
 JNIEXPORT jdouble JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeGetFps(JNIEnv *env, jclass cls) {
     (void)env; (void)cls;
