@@ -4,7 +4,7 @@ set -u
 cd "$(dirname "$0")"
 ROOT="$PWD"
 SRC="$ROOT/src"
-NDK=~/Android/Sdk/ndk/28.2.13676358
+NDK=${ANDROID_NDK_HOME:-~/Android/Sdk/ndk/28.2.13676358}
 TC=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
 CC=$TC/aarch64-linux-android26-clang
 
@@ -28,7 +28,7 @@ for f in $(find $GEN -name "*.c") $SRC/tools/gamelib_entry.c; do
         echo "FAIL: $f"; fail=1
     fi &
     # throttle: never more than nproc jobs
-    while [ $(jobs -r | wc -l) -ge 2 ]; do sleep 2; done
+    while [ $(jobs -r | wc -l) -ge ${JOBS:-2} ]; do sleep 1; done
 done
 wait
 echo "objects: $(ls $OUTDIR/obj/*.o 2>/dev/null | wc -l)"
