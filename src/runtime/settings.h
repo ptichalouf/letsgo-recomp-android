@@ -27,7 +27,7 @@ typedef struct {
     int vertex_read;     // VREAD_*: where the GPU reads vertex and index data (runtime/nvn/vulkan/exec.c)
     bool wild_battle;    // touching a wild Pokémon starts a battle, then the capture (runtime/hle/wildbattle.c)
     char game_lang[8];   // the game's language code ("en-US", "es"...: runtime/mods.c game_language)
-    char mod[128];       // active mod / fan translation (mods/<name>/), empty = none (runtime/mods.h)
+    char mod[512];       // active mods / fan translations (mods/<name>/, "a, b": several), empty = none (runtime/mods.h)
 } Settings;
 
 extern Settings g_settings;
