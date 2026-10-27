@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Libellés MASTER.md §B6 (t_097c578a), dans un fichier séparé : strings.xml a d'autres écrivains en cours. -->
+<resources>
+    <string name="layout_zones">"Imagem do jogo no topo, comandos na zona de baixo"</string>
+    <string name="capture">"Capturar a tela"</string>
+</resources>

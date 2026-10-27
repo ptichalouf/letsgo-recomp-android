@@ -37,6 +37,7 @@ public class LetsGoLauncherActivity extends Activity {
     private boolean settingsShowing;
     private int activeSection;
     private int layoutGeneration;
+    private android.content.res.Configuration previousConfiguration;
     private ModsPanel modsPanel;    // Settings > Mods (ModsPanel.java)
 
     /** The user-picked game folder, or null if not set (GameDir: kept across app updates). */
@@ -101,6 +102,7 @@ public class LetsGoLauncherActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        previousConfiguration = new android.content.res.Configuration(getResources().getConfiguration());
         // Opened from the home screen while the task already has a launcher (or the game): bring that one back
         // instead of stacking a second launcher whose screen would lag behind the first.
         if (!isTaskRoot() && getIntent() != null && Intent.ACTION_MAIN.equals(getIntent().getAction())
@@ -127,27 +129,27 @@ public class LetsGoLauncherActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setBackgroundColor(Color.rgb(20, 22, 28));
+        root.setBackgroundColor(Theme.color(this, "bg"));
         int pad = dp(24);
         root.setPadding(pad, pad, pad, pad);
 
         TextView title = new TextView(this);
         title.setText("Let's Go Recomp");
-        title.setTextSize(28);
-        title.setTextColor(Color.WHITE);
+        title.setTextSize(Theme.TITLE_L);
+        title.setTextColor(Theme.color(this, "text"));
         title.setGravity(Gravity.CENTER);
         root.addView(title, lp(-1, -2));
 
         status = new TextView(this);
         status.setTextSize(15);
-        status.setTextColor(Color.rgb(180, 190, 200));
+        status.setTextColor(Theme.color(this, "text2"));
         status.setGravity(Gravity.CENTER);
         status.setPadding(0, dp(12), 0, dp(24));
         root.addView(status, lp(-1, -2));
 
-        play = new Button(this);
+        play = Theme.playButton(this, "");
         play.setText(Txt.t("play", "Jogar"));
-        play.setTextSize(18);
+        play.setTextSize(Theme.PLAY);
         play.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
                 // Never launch into a native crash: without complete game data
@@ -165,7 +167,7 @@ public class LetsGoLauncherActivity extends Activity {
         });
         root.addView(play, lp(-1, -2));
 
-        pick = new Button(this);
+        pick = Theme.secondaryButton(this, "");
         pick.setText(Txt.t("sel_folder", "Escolher a pasta do jogo"));
         pick.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { pickGameDir(); }
@@ -175,7 +177,7 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(pick, plp);
 
         // All-files access: the runtime opens the game folder by path (fopen), the folder picker alone is not enough.
-        access = new Button(this);
+        access = Theme.secondaryButton(this, "");
         access.setText(Txt.t("allow_all", "Permitir acesso a todos os arquivos"));
         access.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { requestAllFilesAccess(); }
@@ -184,7 +186,7 @@ public class LetsGoLauncherActivity extends Activity {
 
         // A romfs.bin cut short (the first boot builds it from romfs/; stopping it midway leaves a short file that
         // the runtime would take as done): remove it so the next boot builds it again. Only offered with romfs/.
-        rebuild = new Button(this);
+        rebuild = Theme.secondaryButton(this, "");
         rebuild.setText(Txt.t("rebuild_btn", "Refazer romfs.bin a partir de romfs/"));
         rebuild.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) { confirmRebuild(); }
@@ -192,7 +194,7 @@ public class LetsGoLauncherActivity extends Activity {
         root.addView(rebuild, lp(-1, -2));
 
         // Reversible: forget the folder (preference + persisted permission); the files stay where they are.
-        forget = new Button(this);
+        forget = Theme.secondaryButton(this, "");
         forget.setText(Txt.t("forget", "Esquecer esta pasta"));
         forget.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -204,7 +206,7 @@ public class LetsGoLauncherActivity extends Activity {
         });
         root.addView(forget, lp(-1, -2));
 
-        Button log = new Button(this);
+        Button log = Theme.secondaryButton(this, "");
         log.setText(Txt.t("ver_log", "Ver log"));
         log.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -224,19 +226,19 @@ public class LetsGoLauncherActivity extends Activity {
         android.widget.TextView drvTitle = new android.widget.TextView(this);
         drvTitle.setText(Txt.t("gpu", "Driver GPU (Turnip)"));
         drvTitle.setTextSize(16);
-        drvTitle.setTextColor(Color.rgb(255, 255, 255));
+        drvTitle.setTextColor(Theme.color(this, "text"));
         drvTitle.setPadding(0, dp(16), 0, dp(4));
         root.addView(drvTitle, lp(-1, -2));
 
         drvDevice = new android.widget.TextView(this);
         drvDevice.setTextSize(12);
-        drvDevice.setTextColor(Color.rgb(150, 160, 170));
+        drvDevice.setTextColor(Theme.color(this, "text3"));
         drvDevice.setText(Txt.t("detecting", "Detectando o aparelho..."));
         root.addView(drvDevice, lp(-1, -2));
 
         drvStatus = new android.widget.TextView(this);
         drvStatus.setTextSize(13);
-        drvStatus.setTextColor(Color.rgb(180, 190, 200));
+        drvStatus.setTextColor(Theme.color(this, "text2"));
         root.addView(drvStatus, lp(-1, -2));
         refreshDrivers();
         new Thread(new Runnable() {
@@ -252,7 +254,7 @@ public class LetsGoLauncherActivity extends Activity {
             }
         }, "gpu-detect").start();
 
-        Button autoDrv = new Button(this);
+        Button autoDrv = Theme.secondaryButton(this, "");
         autoDrv.setText(Txt.t("dl_recommended", "Baixar o driver recomendado para este aparelho"));
         autoDrv.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -263,7 +265,7 @@ public class LetsGoLauncherActivity extends Activity {
         adlp.topMargin = dp(8);
         root.addView(autoDrv, adlp);
 
-        Button importDrv = new Button(this);
+        Button importDrv = Theme.secondaryButton(this, "");
         importDrv.setText(Txt.t("import_driver", "Importar driver Turnip (.zip)"));
         importDrv.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -275,7 +277,7 @@ public class LetsGoLauncherActivity extends Activity {
         });
         root.addView(importDrv, lp(-1, -2));
 
-        Button useSystem = new Button(this);
+        Button useSystem = Theme.secondaryButton(this, "");
         useSystem.setText(Txt.t("use_system", "Usar driver do sistema"));
         useSystem.setOnClickListener(new android.view.View.OnClickListener() {
             @Override public void onClick(android.view.View v) {
@@ -291,31 +293,32 @@ public class LetsGoLauncherActivity extends Activity {
         final TextView cfgTitle = new TextView(this);
         cfgTitle.setText(Txt.t("cfg", "Configurações"));
         cfgTitle.setTextSize(18);
-        cfgTitle.setTextColor(Color.WHITE);
+        cfgTitle.setTextColor(Theme.color(this, "text"));
         cfgTitle.setPadding(0, dp(20), 0, dp(8));
         root.addView(cfgTitle, lp(-1, -2));
 
-        final CheckBox fps60 = new CheckBox(this);
+        final CheckBox fps60 = Theme.checkBox(this, "");
         fps60.setText(Txt.t("fps60", "60 fps (experimental)"));
-        fps60.setTextColor(Color.rgb(200, 210, 220));
+        fps60.setTextColor(Theme.color(this, "text"));
         root.addView(fps60, lp(-1, -2));
 
-        final CheckBox smaa = new CheckBox(this);
+        final CheckBox smaa = Theme.checkBox(this, "");
         smaa.setText(Txt.t("smaa", "Suavizar serrilhado (SMAA)"));
-        smaa.setTextColor(Color.rgb(200, 210, 220));
+        smaa.setTextColor(Theme.color(this, "text"));
         smaa.setChecked(true);
         root.addView(smaa, lp(-1, -2));
 
         // Resolution scale selector (emulator-style)
         TextView resLabel = new TextView(this);
         resLabel.setText(Txt.t("res", "Resolução interna:"));
-        resLabel.setTextColor(Color.rgb(200, 210, 220));
+        resLabel.setTextColor(Theme.color(this, "text"));
         root.addView(resLabel, lp(-1, -2));
 
         // The render HEIGHT (LARECOMP_SCALE = height / 1080, runtime/nvn/output_scale.c); the width follows the image
         // format below. "native" = the screen's own pixels; "custom" = a width x height typed by the player (its
         // ratio becomes the format: LetsGoActivity).
         final android.widget.Spinner resSpinner = new android.widget.Spinner(this);
+        Theme.selector(this, resSpinner);
         final String[] resNames = {Txt.t("res_05", "480p - Desempenho"), Txt.t("res_075", "540p - Equilibrado"),
                                    Txt.t("res_1x", "720p - Padrão"), Txt.t("res_900", "900p"),
                                    Txt.t("res_2x", "1080p - Qualidade"), Txt.t("res_1440", "1440p - Máxima (GPU forte)"),
@@ -341,8 +344,8 @@ public class LetsGoLauncherActivity extends Activity {
         customRes.setSingleLine(true);
         customRes.setHint(Txt.t("res_custom_hint", "ex.: 1440x1080"));
         customRes.setText(prefs.getString("custom_resolution", "1440x1080"));
-        customRes.setTextColor(Color.WHITE);
-        customRes.setHintTextColor(Color.rgb(120, 130, 140));
+        customRes.setTextColor(Theme.color(this, "text"));
+        customRes.setHintTextColor(Theme.color(this, "text2"));
         customRes.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         customRes.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
@@ -360,9 +363,10 @@ public class LetsGoLauncherActivity extends Activity {
         // on the Fold4: dialogue box 1.48x taller in "fill"). Experimental until the interface is kept in a 16:9 box.
         TextView fmtLabel = new TextView(this);
         fmtLabel.setText(Txt.t("fmt", "Formato da imagem:"));
-        fmtLabel.setTextColor(Color.rgb(200, 210, 220));
+        fmtLabel.setTextColor(Theme.color(this, "text"));
         root.addView(fmtLabel, lp(-1, -2));
         final android.widget.Spinner fmtSpinner = new android.widget.Spinner(this);
+        Theme.selector(this, fmtSpinner);
         final String[] fmtNames = {Txt.t("fmt_169", "16:9 do jogo (faixas pretas)"), Txt.t("fmt_43", "4:3 (experimental: interface esticada)"),
                                    Txt.t("fmt_fill", "Preencher a tela (experimental: interface esticada)")};
         final String[] fmtValues = {"", "4:3", "fill"};
@@ -397,10 +401,11 @@ public class LetsGoLauncherActivity extends Activity {
         // replaces the English/ folder (PT-BR) needs. An installed mod that carries its own language still wins.
         TextView langLabel = new TextView(this);
         langLabel.setText(Txt.t("lang", "Idioma do jogo:"));
-        langLabel.setTextColor(Color.rgb(200, 210, 220));
+        langLabel.setTextColor(Theme.color(this, "text"));
         root.addView(langLabel, lp(-1, -2));
 
         final android.widget.Spinner langSpinner = new android.widget.Spinner(this);
+        Theme.selector(this, langSpinner);
         final String[] langNames = {Txt.t("lang_default", "Padrão (inglês / tradução PT-BR)"), "English", "Français", "Español", "Deutsch",
                                     "Italiano", "日本語", "한국어", "简体中文", "繁體中文"};
         final String[] langValues = {"", "en-US", "fr", "es", "de", "it", "ja", "ko", "zh-CN", "zh-TW"};
@@ -427,16 +432,16 @@ public class LetsGoLauncherActivity extends Activity {
         });
         root.addView(langSpinner, lp(-1, -2));
 
-        final CheckBox wild = new CheckBox(this);
+        final CheckBox wild = Theme.checkBox(this, "");
         wild.setText(Txt.t("wild", "Batalhas selvagens (experimental)"));
-        wild.setTextColor(Color.rgb(200, 210, 220));
+        wild.setTextColor(Theme.color(this, "text"));
         root.addView(wild, lp(-1, -2));
 
         // The phone's motion sensor aims the Poke Ball throws, like the Switch in handheld mode (GyroAim.java).
         // Off by default: the touch controls aim as before; checked, both work together.
-        final CheckBox gyroAim = new CheckBox(this);
+        final CheckBox gyroAim = Theme.checkBox(this, "");
         gyroAim.setText(Txt.t("gyro", "Mirar com o giroscópio (inclinar o telefone)"));
-        gyroAim.setTextColor(Color.rgb(200, 210, 220));
+        gyroAim.setTextColor(Theme.color(this, "text"));
         gyroAim.setChecked(getSharedPreferences("letsgo", MODE_PRIVATE).getBoolean("gyro", false));
         root.addView(gyroAim, lp(-1, -2));
         gyroAim.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
@@ -445,9 +450,9 @@ public class LetsGoLauncherActivity extends Activity {
             }
         });
 
-        final CheckBox touch = new CheckBox(this);
+        final CheckBox touch = Theme.checkBox(this, "");
         touch.setText(Txt.t("touch", "Controles touch na tela"));
-        touch.setTextColor(Color.rgb(200, 210, 220));
+        touch.setTextColor(Theme.color(this, "text"));
         touch.setChecked(getSharedPreferences("letsgo", MODE_PRIVATE).getBoolean("touch", true));
         root.addView(touch, lp(-1, -2));
         touch.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
@@ -456,9 +461,9 @@ public class LetsGoLauncherActivity extends Activity {
             }
         });
         // default: minimal controls in the black bars (A, B, X, "..." + floating stick); checked: the old full layout
-        final CheckBox touchFull = new CheckBox(this);
+        final CheckBox touchFull = Theme.checkBox(this, "");
         touchFull.setText(Txt.t("touch_full", "Layout touch completo (antigo)"));
-        touchFull.setTextColor(Color.rgb(200, 210, 220));
+        touchFull.setTextColor(Theme.color(this, "text"));
         touchFull.setChecked("classic".equals(getSharedPreferences("letsgo", MODE_PRIVATE).getString("touch_layout", "minimal")));
         root.addView(touchFull, lp(-1, -2));
         touchFull.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
@@ -489,7 +494,7 @@ public class LetsGoLauncherActivity extends Activity {
         TextView hint = new TextView(this);
         hint.setText(Txt.t("hint_log", "Se o jogo fechar ao abrir, use \"Ver log\" e me envie o conteúdo."));
         hint.setTextSize(13);
-        hint.setTextColor(Color.rgb(140, 150, 160));
+        hint.setTextColor(Theme.color(this, "text3"));
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, dp(24), 0, 0);
         root.addView(hint, lp(-1, -2));
@@ -505,7 +510,7 @@ public class LetsGoLauncherActivity extends Activity {
             section("journal", Txt.t("log_title", "Log do app"))
         };
         folderStatus = new TextView(this);
-        folderStatus.setTextColor(Color.WHITE);
+        folderStatus.setTextColor(Theme.color(this, "text"));
         sections[0].addView(folderStatus, lp(-1, -2));
         Button settingsPick = navigation(pick.getText(), () -> pick.performClick());
         sections[0].addView(settingsPick, lp(-1, -2));
@@ -521,7 +526,7 @@ public class LetsGoLauncherActivity extends Activity {
         move(sections[2], resLabel, resSpinner, customRes, fmtLabel, fmtSpinner, fps60, smaa);
         TextView profileNote = new TextView(this);
         profileNote.setText(Txt.t("profiles_cold", "Perfis guardados para uma próxima sessão. Troca automática bloqueada: o renderizador ainda não pré-aquece os shaders. Os controles acima continuam ativos."));
-        profileNote.setTextColor(Color.rgb(200, 210, 220));
+        profileNote.setTextColor(Theme.color(this, "text2"));
         sections[2].addView(profileNote, lp(-1, -2));
         LinearLayout profiles = new LinearLayout(this);
         profiles.setOrientation(LinearLayout.HORIZONTAL);
@@ -562,17 +567,7 @@ public class LetsGoLauncherActivity extends Activity {
             final int index = i;
             railButtons[i] = navigation(((TextView) sections[i].getChildAt(0)).getText(),
                     () -> showSettings(index));
-            android.content.res.ColorStateList colors = new android.content.res.ColorStateList(
-                    new int[][]{new int[]{android.R.attr.state_selected}, new int[]{}},
-                    new int[]{0xfff0b872, 0xffeceef2});
-            railButtons[i].setTextColor(colors);
-            android.graphics.drawable.GradientDrawable selectedBg = new android.graphics.drawable.GradientDrawable();
-            selectedBg.setColor(0x24e8a95b);
-            selectedBg.setCornerRadius(dp(28));
-            android.graphics.drawable.StateListDrawable background = new android.graphics.drawable.StateListDrawable();
-            background.addState(new int[]{android.R.attr.state_selected}, selectedBg);
-            background.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
-            railButtons[i].setBackground(background);
+            Theme.railButton(this, railButtons[i]);
             rail.addView(railButtons[i], lp(-1, -2));
         }
         railScroll = scrolling(rail); // large fonts must not clip the sixth navigation item
@@ -580,7 +575,7 @@ public class LetsGoLauncherActivity extends Activity {
         settingsScroll.getViewTreeObserver().addOnGlobalLayoutListener(() -> updateRail());
         screen = new LinearLayout(this);
         screen.setOrientation(LinearLayout.VERTICAL);
-        screen.setBackgroundColor(Color.rgb(20, 22, 28));
+        screen.setBackgroundColor(Theme.color(this, "bg"));
         screen.addView(homeScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
         screen.addView(settingsPage, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(screen);
@@ -597,10 +592,7 @@ public class LetsGoLauncherActivity extends Activity {
         group.setTag(tag);
         group.setOrientation(LinearLayout.VERTICAL);
         group.setPadding(0, dp(24), 0, dp(8));
-        TextView heading = new TextView(this);
-        heading.setText(title);
-        heading.setTextSize(18);
-        heading.setTextColor(Color.WHITE);
+        TextView heading = Theme.sectionHeader(this, title);
         if (android.os.Build.VERSION.SDK_INT >= 28) heading.setAccessibilityHeading(true);
         group.addView(heading, lp(-1, -2));
         return group;
@@ -614,7 +606,7 @@ public class LetsGoLauncherActivity extends Activity {
     }
 
     private Button navigation(CharSequence title, Runnable action) {
-        Button button = new Button(this);
+        Button button = Theme.secondaryButton(this, "");
         button.setText(title);
         button.setAllCaps(false);
         button.setMinHeight(dp(56));
@@ -689,6 +681,12 @@ public class LetsGoLauncherActivity extends Activity {
     @Override public void onConfigurationChanged(android.content.res.Configuration c) {
         super.onConfigurationChanged(c);
         if (settingsScroll == null) return;
+        // uiMode is handled here rather than recreating native rendering activities.
+        if ((c.diff(previousConfiguration) & android.content.pm.ActivityInfo.CONFIG_UI_MODE) != 0) {
+            recreate();
+            return;
+        }
+        previousConfiguration = new android.content.res.Configuration(c);
         int offset = settingsScroll.getScrollY() - sections[activeSection].getTop();
         layoutSettings(activeSection, offset);
     }
@@ -842,8 +840,8 @@ public class LetsGoLauncherActivity extends Activity {
     private void driverChoice(String title, GpuDrivers.Driver driver, boolean selected) {
         android.widget.RadioButton radio = new android.widget.RadioButton(this);
         radio.setText(title);
-        radio.setTextColor(Color.WHITE);
-        radio.setMinHeight(dp(48));
+        radio.setTextColor(Theme.color(this, "text"));
+        Theme.toggle(this, radio);
         radio.setChecked(selected);
         radio.setOnClickListener(v -> {
             GpuDrivers.select(this, driver);
@@ -1204,7 +1202,7 @@ public class LetsGoLauncherActivity extends Activity {
         col.setPadding(0, dp(12), dp(8), dp(12));
         TextView heading = new TextView(this);
         heading.setText(title);
-        heading.setTextColor(Color.WHITE);
+        heading.setTextColor(Theme.color(this, "text"));
         col.addView(heading, lp(-1, -2));
         profileSpinner(col, "profile_" + profile + "_height", Txt.t("res", "Resolução interna:"),
             new String[]{"480p", "540p", "720p", "900p", "1080p", "1440p"},
@@ -1217,8 +1215,7 @@ public class LetsGoLauncherActivity extends Activity {
                 Txt.t("fmt_43", "4:3 (experimental: interface esticada)"),
                 Txt.t("fmt_fill", "Preencher a tela (experimental: interface esticada)")},
             new String[]{"0", "1", "2"}, "0");
-        Button apply = new Button(this);
-        apply.setText(Txt.t("profile_apply", "Usar no próximo início"));
+        Button apply = Theme.secondaryButton(this, Txt.t("profile_apply", "Usar no próximo início"));
         apply.setOnClickListener(v -> {
             if (LetsGoActivity.running) return;
             String prefix = "profile_" + profile + "_";
@@ -1257,9 +1254,10 @@ public class LetsGoLauncherActivity extends Activity {
     private void profileSpinner(LinearLayout col, String key, String label, String[] names, String[] values, String fallback) {
         TextView text = new TextView(this);
         text.setText(label);
-        text.setTextColor(Color.rgb(200, 210, 220));
+        text.setTextColor(Theme.color(this, "text2"));
         col.addView(text, lp(-1, -2));
         android.widget.Spinner spinner = new android.widget.Spinner(this);
+        Theme.selector(this, spinner);
         android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new java.util.ArrayList<>(java.util.Arrays.asList(names)));
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);

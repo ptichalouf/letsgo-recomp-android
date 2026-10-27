@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.letsgorecomp"
-    android:versionCode="1792949803"
+    android:versionCode="1793115500"
     android:versionName="0.1.0-boot">
 
     <!-- Vulkan 1.3 is required by the NVN-on-Vulkan renderer -->
@@ -28,6 +28,7 @@
         <!-- The launcher and the log follow the phone (fold, unfold, rotation; the system's rotation lock is
              respected); only the game (LetsGoActivity) stays in landscape. configChanges keeps their screen alive. -->
         <activity android:name="com.letsgorecomp.LetsGoLauncherActivity"
+                  android:theme="@style/Launcher"
                   android:label="Let's Go Recomp"
                   android:screenOrientation="unspecified"
                   android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode"

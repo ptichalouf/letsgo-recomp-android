@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MASTER.md §2. Single color source, also consumed by Theme.java. -->
+<resources>
+    <color name="lg_bg">#14161C</color>
+    <color name="lg_surface">#1C1F27</color>
+    <color name="lg_surface2">#252A33</color>
+    <color name="lg_surface3">#2E3440</color>
+    <color name="lg_line">#3A4250</color>
+    <color name="lg_ctl">#6E7787</color>
+    <color name="lg_text">#ECEEF2</color>
+    <color name="lg_text2">#B3BAC5</color>
+    <color name="lg_text3">#9AA2AE</color>
+    <color name="lg_text_off">#6B7280</color>
+    <color name="lg_primary">#E8A95B</color>
+    <color name="lg_on_primary">#22170A</color>
+    <color name="lg_primary_text">#F0B872</color>
+    <color name="lg_primary_soft">#24E8A95B</color>
+    <color name="lg_error">#F19A8F</color>
+    <color name="lg_error_soft">#1FF19A8F</color>
+    <color name="lg_warn">#E5C07B</color>
+    <color name="lg_warn_soft">#1FE5C07B</color>
+    <color name="lg_ok">#8FD3A0</color>
+    <color name="lg_press">#1FECEEF2</color>
+    <color name="lg_scrim">#9E050608</color>
+</resources>

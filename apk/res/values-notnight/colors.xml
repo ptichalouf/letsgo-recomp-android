@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- notnight is supported since API 8, including the project's API 28 minimum. -->
+<resources>
+    <color name="lg_bg">#F5F3EF</color>
+    <color name="lg_surface">#FFFFFF</color>
+    <color name="lg_surface2">#ECE8E1</color>
+    <color name="lg_surface3">#E2DDD4</color>
+    <color name="lg_line">#D6CFC4</color>
+    <color name="lg_ctl">#857B6C</color>
+    <color name="lg_text">#1B1D22</color>
+    <color name="lg_text2">#474D57</color>
+    <color name="lg_text3">#5E6570</color>
+    <color name="lg_text_off">#9A958C</color>
+    <color name="lg_primary">#9A5A12</color>
+    <color name="lg_on_primary">#FFFFFF</color>
+    <color name="lg_primary_text">#8A520F</color>
+    <color name="lg_primary_soft">#38E8A95B</color>
+    <color name="lg_error">#B3261E</color>
+    <color name="lg_error_soft">#14B3261E</color>
+    <color name="lg_warn">#7A5800</color>
+    <color name="lg_warn_soft">#177A5800</color>
+    <color name="lg_ok">#256B3A</color>
+    <color name="lg_press">#1A1B1D22</color>
+    <color name="lg_scrim">#8C14120E</color>
+    <style name="Launcher" parent="@android:style/Theme.Material.Light.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/lg_bg</item>
+        <item name="android:colorBackground">@color/lg_bg</item>
+        <item name="android:colorAccent">@color/lg_primary</item>
+        <item name="android:textColorPrimary">@color/lg_text</item>
+        <item name="android:textColorSecondary">@color/lg_text2</item>
+        <item name="android:colorControlNormal">@color/lg_ctl</item>
+        <item name="android:colorControlActivated">@color/lg_primary</item>
+        <item name="android:colorControlHighlight">@color/lg_press</item>
+        <item name="android:buttonStyle">@style/LgButton</item>
+        <item name="android:checkboxStyle">@style/LgCheckBox</item>
+        <item name="android:radioButtonStyle">@style/LgRadioButton</item>
+        <item name="android:spinnerStyle">@style/LgSpinner</item>
+        <item name="android:editTextStyle">@style/LgEditText</item>
+    </style>
+</resources>

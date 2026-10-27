@@ -1,9 +1,7 @@
 package com.letsgorecomp;
 
-// The launcher speaks the phone's language. The words it always showed were Portuguese and stay in
-// the code as the default; apk/res/values-en|fr/strings.xml say the same things in English and in
-// French, and t("play", "Jogar") returns whichever the system asks for. A key missing from those
-// files changes nothing: the Portuguese string comes back.
+// Resources follow the application's language, including Android 13+ per-app languages.
+// values/ remains the Portuguese default; values-en|fr contain the existing translations.
 class Txt {
     private static android.content.res.Resources res;
     private static String pkg = "com.letsgorecomp";
@@ -13,8 +11,17 @@ class Txt {
             pkg = ctx.getPackageName();
             android.content.res.Configuration c =
                 new android.content.res.Configuration(ctx.getResources().getConfiguration());
-            c.setLocale(c.locale);  // (the phone's language, on a copy that keeps its other settings)
-            res = ctx.getApplicationContext().createConfigurationContext(c).getResources();
+            java.util.Locale locale = c.getLocales().get(0);
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                android.app.LocaleManager manager = ctx.getSystemService(android.app.LocaleManager.class);
+                if (manager != null && !manager.getApplicationLocales().isEmpty()) {
+                    locale = manager.getApplicationLocales().get(0);
+                }
+            }
+            // Keep just the requested language. Otherwise [pt, fr] can select the explicit
+            // French resources before the unqualified Portuguese resources (values/).
+            c.setLocale(locale);
+            res = ctx.createConfigurationContext(c).getResources();
         } catch (Exception e) { res = null; }
     }
 

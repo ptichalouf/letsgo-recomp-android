@@ -1,5 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- MASTER.md: pinned platform Material, not OEM-dependent DeviceDefault.
+         Only the launcher uses this; the game's Fullscreen theme is unchanged. -->
+    <style name="Launcher.Base" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/lg_bg</item>
+        <item name="android:colorBackground">@color/lg_bg</item>
+        <item name="android:colorAccent">@color/lg_primary</item>
+        <item name="android:textColorPrimary">@color/lg_text</item>
+        <item name="android:textColorSecondary">@color/lg_text2</item>
+        <item name="android:colorControlNormal">@color/lg_ctl</item>
+        <item name="android:colorControlActivated">@color/lg_primary</item>
+        <item name="android:colorControlHighlight">@color/lg_press</item>
+        <item name="android:buttonStyle">@style/LgButton</item>
+        <item name="android:checkboxStyle">@style/LgCheckBox</item>
+        <item name="android:radioButtonStyle">@style/LgRadioButton</item>
+        <item name="android:spinnerStyle">@style/LgSpinner</item>
+        <item name="android:editTextStyle">@style/LgEditText</item>
+    </style>
+    <style name="Launcher" parent="Launcher.Base" />
+    <style name="LgButton" parent="@android:style/Widget.Material.Button">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">48dp</item>
+    </style>
+    <style name="LgCheckBox" parent="@android:style/Widget.Material.CompoundButton.CheckBox">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">48dp</item>
+    </style>
+    <style name="LgRadioButton" parent="@android:style/Widget.Material.CompoundButton.RadioButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">48dp</item>
+    </style>
+    <style name="LgSpinner" parent="@android:style/Widget.Material.Spinner">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:minWidth">48dp</item>
+        <item name="android:popupBackground">@color/lg_surface</item>
+    </style>
+    <style name="LgEditText" parent="@android:style/Widget.Material.EditText">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textColorHint">@color/lg_text2</item>
+    </style>
     <style name="Fullscreen" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:windowFullscreen">true</item>

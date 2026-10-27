@@ -30,11 +30,12 @@ final class ModsPanel {
     static final int REQ_MOD_FILE = 1005;
     static final String PREF_MOD = "mod";  // (the one-mod screen's choice: read once, to seed the order)
     enum Primary { FILE, LINK, CATALOGUE }
-    private static final int TEXT2 = 0xFFB3BAC5, TEXT3 = 0xFF9AA2AE, ERROR = 0xFFF19A8F, AMBER = 0xFFE8A95B, ON_AMBER = 0xFF22170A;
+
 
     private final Activity a;
     private LinearLayout list, slot;
     private boolean busy;
+    private String failedFile, failedMessage;
 
     ModsPanel(Activity a) { this.a = a; }
 
@@ -66,11 +67,11 @@ final class ModsPanel {
     }
 
     void build(LinearLayout section) {
-        section.addView(text(Txt.t("mods_what", "Um mod troca imagens, modelos ou textos do jogo, sem mexer na sua gravação."), TEXT2, 13));
+        section.addView(text(Txt.t("mods_what", "Um mod troca imagens, modelos ou textos do jogo, sem mexer na sua gravação."), Theme.color(a, "text2"), 13));
         list = new LinearLayout(a);
         list.setOrientation(LinearLayout.VERTICAL);
         section.addView(list, lp());
-        section.addView(text(Txt.t("mods_order_rule", "Ordem de carregamento: se dois mods ativos trocam o mesmo arquivo, vale o que está mais acima. Use ▲ ▼ para mudar."), TEXT3, 12));
+        section.addView(text(Txt.t("mods_order_rule", "Ordem de carregamento: se dois mods ativos trocam o mesmo arquivo, vale o que está mais acima. Use ▲ ▼ para mudar."), Theme.color(a, "text3"), 12));
         slot = new LinearLayout(a);
         slot.setOrientation(LinearLayout.VERTICAL);
         section.addView(slot, lp());
@@ -88,16 +89,16 @@ final class ModsPanel {
         } else if (p == Primary.LINK) {
             slot.addView(amber(Txt.t("mods_gb_browse", "Procurar mods no GameBanana"), site));
             slot.addView(button(Txt.t("mods_add_file", "Adicionar um arquivo baixado"), addFile));
-            slot.addView(text(Txt.t("mods_gb_then", "Baixe o arquivo e volte aqui para adicioná-lo."), TEXT3, 12));
+            slot.addView(text(Txt.t("mods_gb_then", "Baixe o arquivo e volte aqui para adicioná-lo."), Theme.color(a, "text3"), 12));
         } else {
             slot.addView(amber(Txt.t("mods_browse", "Explorar mods"), new Runnable() { @Override public void run() { openCatalogue(); } }));
             slot.addView(button(Txt.t("mods_add_file", "Adicionar um arquivo baixado"), addFile));
         }
         if (p != Primary.LINK) {
-            slot.addView(text(Txt.t("mods_formats", "Arquivo .zip, .rar ou .7z baixado, ou pasta já descompactada."), TEXT3, 12));
+            slot.addView(text(Txt.t("mods_formats", "Arquivo .zip, .rar ou .7z baixado, ou pasta já descompactada."), Theme.color(a, "text3"), 12));
             Button link = button(Txt.t("mods_gb_link", "Página do jogo no GameBanana"), site);
-            link.setBackgroundColor(Color.TRANSPARENT);
-            link.setTextColor(0xFFF0B872);
+            link.setBackground(Theme.background(a, Color.TRANSPARENT, Theme.R_CTL, false));
+            link.setTextColor(Theme.color(a, "primary_text"));
             slot.addView(link);
         }
     }
@@ -107,7 +108,13 @@ final class ModsPanel {
         list.removeAllViews();
         File root = modsDir(a).getParentFile();
         final List<ModStore.Entry> order = order(a);
-        if (order.isEmpty()) list.addView(text(Txt.t("mods_empty", "Nenhum mod instalado."), TEXT2, 14));
+        long used = 0;
+        for (ModStore.Entry item : order) used += ModStore.size(new File(modsDir(a), item.name));
+        LinearLayout summary = Theme.statusBar(a, String.format(Txt.t("mods_summary", ""), order.size(),
+                android.text.format.Formatter.formatShortFileSize(a, used),
+                android.text.format.Formatter.formatShortFileSize(a, a.getFilesDir().getUsableSpace())), null);
+        list.addView(summary, lp());
+        if (order.isEmpty()) list.addView(text(Txt.t("mods_empty", "Nenhum mod instalado."), Theme.color(a, "text2"), 14));
         int rank = 0;
         for (int i = 0; i < order.size(); i++) {
             final ModStore.Entry e = order.get(i);
@@ -117,13 +124,14 @@ final class ModsPanel {
             String meta = (e.on ? String.format(Txt.t("mods_on_rank", "Ativo · nº %1$d"), ++rank) : Txt.t("mods_off", "Inativo")) + " · "
                 + (author.isEmpty() ? Txt.t("mods_by_unknown", "autor não informado") : String.format(Txt.t("mods_by", "por %1$s"), author))
                 + " · " + (src.getProperty("gamebanana.mod", "").isEmpty() ? Txt.t("mods_src_file", "arquivo importado") : Txt.t("mods_src_gb", "GameBanana"));
+            LinearLayout tile = Theme.tile(a);
             LinearLayout row = new LinearLayout(a);
             row.setMinimumHeight(dp(64));
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
             Switch sw = new Switch(a);
-            sw.setText(m + "\n" + meta);
-            sw.setTextColor(Color.rgb(200, 210, 220));
-            sw.setMinHeight(dp(56));
+            sw.setText(m + "\n" + meta + " · " + android.text.format.Formatter.formatShortFileSize(a, ModStore.size(new File(modsDir(a), m))));
+            sw.setTextColor(Theme.color(a, "text"));
+            Theme.toggle(a, sw);
             sw.setChecked(e.on);
             sw.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
                 @Override public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
@@ -137,21 +145,36 @@ final class ModsPanel {
             row.addView(arrow("▲", String.format(Txt.t("mods_up", "Subir %1$s"), m), i > 0, m, -1, order), new LinearLayout.LayoutParams(dp(48), -2));
             row.addView(arrow("▼", String.format(Txt.t("mods_down", "Descer %1$s"), m), i < order.size() - 1, m, 1, order), new LinearLayout.LayoutParams(dp(48), -2));
             Button rm = button(Txt.t("mods_remove", "Remover"), new Runnable() { @Override public void run() { confirmRemove(m); } });
-            rm.setTextColor(ERROR);
-            rm.setBackgroundColor(Color.TRANSPARENT);
+            rm.setTextColor(Theme.color(a, "error"));
+            rm.setBackground(Theme.background(a, Color.TRANSPARENT, Theme.R_CTL, false));
             row.addView(rm, new LinearLayout.LayoutParams(-2, -2));
-            list.addView(row, lp());
+            // Stack actions below the name on narrow screens; a long author must not hide the switch.
+            if (a.getResources().getConfiguration().screenWidthDp < 600) {
+                row.removeView(sw);
+                tile.addView(sw, lp());
+            }
+            tile.addView(row, lp());
+            LinearLayout.LayoutParams tileParams = lp();
+            tileParams.bottomMargin = dp(Theme.S2);
+            list.addView(tile, tileParams);
+        }
+        if (failedMessage != null) {
+            LinearLayout failed = Theme.tile(a);
+            failed.addView(Theme.sectionHeader(a, Txt.t("mods_failed", "")), lp());
+            failed.addView(Theme.label(a, failedFile + "\n" + failedMessage, Theme.BODY, "error", false), lp());
+            failed.addView(button(Txt.t("mods_dismiss", ""), () -> { failedMessage = null; refresh(); }), lp());
+            list.addView(failed, lp());
         }
         // Two active mods that write the same file: say which file, which two, and which one the game gets.
         List<ModStore.Conflict> cs = ModStore.conflicts(root, ModStore.active(order));
         if (!cs.isEmpty()) {
-            list.addView(text(String.format(Txt.t("mods_conflicts", "Conflitos: %1$d arquivo(s) trocado(s) por dois mods ativos"), cs.size()), AMBER, 14));
+            list.addView(text(String.format(Txt.t("mods_conflicts", "Conflitos: %1$d arquivo(s) trocado(s) por dois mods ativos"), cs.size()), Theme.color(a, "primary_text"), 14));
             for (int i = 0; i < cs.size() && i < 6; i++) {
                 ModStore.Conflict c = cs.get(i);
                 android.util.Log.i("lasrecomp", "[mods] conflict on screen: " + c.path + ": '" + c.winner + "' over '" + c.loser + "'");
-                list.addView(text(String.format(Txt.t("mods_conflict", "%1$s: está em %2$s e em %3$s. Vale %2$s (mais acima)."), c.path, c.winner, c.loser), AMBER, 12));
+                list.addView(text(String.format(Txt.t("mods_conflict", "%1$s: está em %2$s e em %3$s. Vale %2$s (mais acima)."), c.path, c.winner, c.loser), Theme.color(a, "primary_text"), 12));
             }
-            if (cs.size() > 6) list.addView(text(String.format(Txt.t("mods_conflicts_more", "… e mais %1$d."), cs.size() - 6), AMBER, 12));
+            if (cs.size() > 6) list.addView(text(String.format(Txt.t("mods_conflicts_more", "… e mais %1$d."), cs.size() - 6), Theme.color(a, "primary_text"), 12));
         }
     }
 
@@ -162,10 +185,11 @@ final class ModsPanel {
             }
         });
         b.setContentDescription(desc);
+        b.setPadding(0, 0, 0, 0);
         b.setEnabled(enabled);
         b.setAlpha(enabled ? 1f : 0.3f);
-        b.setBackgroundColor(Color.TRANSPARENT);
-        b.setTextColor(Color.rgb(200, 210, 220));
+        b.setBackground(Theme.background(a, Color.TRANSPARENT, Theme.R_CTL, false));
+        b.setTextColor(Theme.color(a, "text"));
         return b;
     }
 
@@ -214,6 +238,7 @@ final class ModsPanel {
         new Thread(new Runnable() {
             @Override public void run() {
                 String verdict;
+                boolean installed = false;
                 File tmp = null;
                 try {
                     File dir = modsDir(a);
@@ -232,6 +257,7 @@ final class ModsPanel {
                     android.util.Log.i("lasrecomp", "[mods] unpack '" + fileName + "' -> " + result);
                     ModStore.Unpacked r = ModStore.Unpacked.parse(result);
                     if (r.ok && !r.mods.isEmpty()) {
+                        installed = true;
                         List<ModStore.Entry> order = order(a);
                         for (String m : r.mods) {
                             java.util.Properties src = new java.util.Properties();
@@ -261,10 +287,12 @@ final class ModsPanel {
                     if (tmp != null) tmp.delete();
                 }
                 final String msg = verdict;
+                final boolean success = installed;
                 a.runOnUiThread(new Runnable() {
                     @Override public void run() {
                         dlg.dismiss();
                         busy = false;
+                        if (!success) { failedFile = fileName; failedMessage = msg; }
                         refresh();
                         new AlertDialog.Builder(a).setTitle(fileName).setMessage(msg).setPositiveButton(android.R.string.ok, null).show();
                     }
@@ -371,6 +399,7 @@ final class ModsPanel {
     private AlertDialog progress(String msg) {
         ProgressBar bar = new ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
         bar.setIndeterminate(true);
+        bar.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Theme.color(a, "primary")));
         LinearLayout v = new LinearLayout(a);
         v.setPadding(dp(24), dp(8), dp(24), dp(8));
         v.addView(bar, lp());
@@ -396,21 +425,18 @@ final class ModsPanel {
     }
 
     private Button button(String s, final Runnable r) {
-        Button b = new Button(a);
+        Button b = Theme.secondaryButton(a, s);
         b.setText(s);
         b.setAllCaps(false);
-        b.setMinHeight(dp(48));
+        b.setMinHeight(dp(Theme.TOUCH_MIN));
         b.setOnClickListener(new android.view.View.OnClickListener() { @Override public void onClick(android.view.View v) { r.run(); } });
         return b;
     }
 
     private Button amber(String s, Runnable r) {
         Button b = button(s, r);
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setColor(AMBER);
-        bg.setCornerRadius(dp(12));
-        b.setBackground(bg);
-        b.setTextColor(ON_AMBER);
+        b.setBackground(Theme.background(a, Theme.color(a, "primary"), Theme.R_CTL, false));
+        b.setTextColor(Theme.textColors(a, Theme.color(a, "on_primary")));
         return b;
     }
 
