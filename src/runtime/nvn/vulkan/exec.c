@@ -4136,9 +4136,39 @@ static void post_pass(VkCommandBuffer cb, const char *fs, const VkImageView *src
 
 // The view the present samples: the game image, or its anti-aliased / upscaled version. ow x oh: the whole image's
 // size in the window (its crop is drawn into the viewport).
+// Per-scene profiles (settings_profile_apply): the live SMAA choice, else the global setting.
+static bool post_smaa_wanted(void) {
+    int live = g_settings.profiles_auto ? settings_profile_live_smaa() : -1;
+    return live >= 0 ? live != 0 : g_settings.antialias == AA_SMAA;
+}
+
+// Build, once and BEFORE the first profile switch, everything a switch can bring in: the post pipelines (SMAA, FSR) and
+// SMAA's lookup textures. Shader compilation (shaderc) and pipeline creation are the slow part (100+ ms: the hole of
+// the first SMAA use); the post images follow the render size and are plain allocations. Called on the render thread
+// between two frames, so nothing is recording.
+void vk_post_prewarm(void) {
+    static bool done;
+    if (done) return;
+    done = true;
+    uint64_t t0 = SDL_GetTicksNS();
+    extern void vk_frame_suspend(void);
+    extern void vk_frame_resume(void);
+    vk_frame_suspend();
+    static const char *const fs[] = {"smaa_edge.frag", "smaa_weight.frag", "smaa_blend.frag", "easu.frag", "rcas.frag"};
+    for (int i = 0; i < 5; i++) {
+        if (i >= 3 && g_settings.upscaler != UPSCALE_FSR1) break;
+        post_pipeline(fs[i]);
+    }
+    (void)smaa_lut(0);
+    (void)smaa_lut(1);
+    vk_frame_resume();
+    LOG("[profiles] prewarm: post pipelines + SMAA tables built in %.0f ms\n", (SDL_GetTicksNS() - t0) / 1e6);
+    settings_profile_set_prewarmed(true);
+}
+
 static VkImageView post_process(VkCommandBuffer cb, TexBackend *b, double ow_d, double oh_d) {
     VkImageView v = raw_view(b);
-    bool smaa = g_settings.antialias == AA_SMAA;
+    bool smaa = post_smaa_wanted();
     uint32_t ow = (uint32_t)lround(ow_d), oh = (uint32_t)lround(oh_d);
     if (ow > 16384) ow = 16384;
     if (oh > 16384) oh = 16384;

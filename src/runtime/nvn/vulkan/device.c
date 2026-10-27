@@ -1420,6 +1420,18 @@ void backend_present(NvnTexture *t) {
         // no GPU timer here (-1): dynamic resolution goes by the frame time
         OutScale os;
         output_scale(dw, dh, false, SDL_GetTicksNS() / 1e9, -1, &os);
+        {   // per-scene profile (settings_profile_apply): the internal height of the current scene's profile replaces the
+            // launcher's; the shape (image format) stays the boot one. The scaled targets re-create at their next use.
+            int lh = g_settings.profiles_auto ? settings_profile_live_height() : 0;
+            if (lh > 0) {
+                os.sy = lh / 1080.0;
+                os.sx = os.sy * os.shape;
+                double cap = fmin(16384.0 / (1920.0 * os.sx), 16384.0 / (1080.0 * os.sy));
+                if (cap < 1.0) { os.sx *= cap; os.sy *= cap; }
+            }
+            extern void vk_post_prewarm(void);
+            if (settings_profile_prewarm_wanted()) vk_post_prewarm();
+        }
         double sx = os.sx, sy = os.sy, vx = os.vx, vy = os.vy, vw = os.vw, vh = os.vh;
         float box[4];  // the letterbox in swapchain-image coordinates
         present_box(dw, dh, vx, vy, vw, vh, box);

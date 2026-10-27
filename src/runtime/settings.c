@@ -1,5 +1,9 @@
 #include "settings.h"
 
+#include <stdatomic.h>
+#ifdef __ANDROID__
+#include <sys/system_properties.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,18 +47,64 @@ Settings g_settings = {
 
 // Unknown keys (an older larecomp.ini: Link's Awakening's options from LAS Recomp) are ignored, and dropped at the
 // next save.
-// Cold profile requests only: the renderer has no prewarm/size-residency contract yet. Refuse live switching rather
-// than promise a hitch-free change: SMAA pipelines are lazy, scaled images reallocate and aspect is cached at boot.
-// Never mutate the shared settings here (the render worker may still be using the previous frame).
-bool settings_profiles_rejected(void) { return true; }
+// Per-scene profiles (profiles_auto = 1). A switch changes two things only, both without building a shader at the
+// moment of the switch: the internal height (a scaled image is re-created at its next use, the shaders do not depend on
+// the size: the viewport is dynamic) and the SMAA passes (their pipelines are built by the render thread BEFORE the
+// first switch: settings_profile_set_prewarmed). The image format stays cold (the camera is patched once at boot).
+// Until the renderer has said it is prewarmed the switch is refused, and the refusal is logged. A new scene must hold
+// for PROFILE_HOLD presents before it switches: a one-frame menu flash never reallocates the render targets.
+// Never mutate the shared settings here (the render worker may still be using the previous frame): the live values are
+// atomics, read by the render thread.
+#define PROFILE_HOLD 24
+uint64_t renderer_game_frame(void);
+static atomic_int g_live_height, g_live_smaa = -1, g_prewarmed;
+bool settings_profiles_rejected(void) { return !g_settings.profiles_auto; }
+int settings_profile_live_height(void) { return atomic_load(&g_live_height); }
+int settings_profile_live_smaa(void) { return atomic_load(&g_live_smaa); }
+void settings_profile_set_prewarmed(bool done) { atomic_store(&g_prewarmed, done); }
+bool settings_profile_prewarm_wanted(void) {
+    return g_settings.profiles_auto && (g_settings.profile_world_smaa || g_settings.profile_battle_smaa || g_settings.upscaler == UPSCALE_FSR1);
+}
 void settings_profile_apply(void) {
-    static int last = -1;
+    static int last = -1, held = 0, applied = -1;
     RtScene scene = fps60_profile_scene();
-    if ((int)scene == last) return;
-    last = scene;
-    LOG("[profiles] scene=%s requested=%s switch=refused reason=renderer-not-prewarmed\n",
-        scene == RT_SCENE_WORLD ? "world" : scene == RT_SCENE_BATTLE ? "battle/capture" : "menu/loading",
-        scene == RT_SCENE_WORLD ? "world" : "battle-menus");
+    {   // LARECOMP_PROFILE_FORCE=<presents> (Android: setprop debug.larecomp.profile_force): test aid, flips the scene every N presents (a measured switch needs no battle)
+        static long force = -1;
+        if (force < 0) {
+            force = getenv("LARECOMP_PROFILE_FORCE") ? atol(getenv("LARECOMP_PROFILE_FORCE")) : 0;
+#ifdef __ANDROID__
+            char pv[PROP_VALUE_MAX] = "";  // adb shell setprop debug.larecomp.profile_force <presents>
+            if (!force && __system_property_get("debug.larecomp.profile_force", pv) > 0) force = atol(pv);
+#endif
+        }
+        if (force > 0) scene = (renderer_game_frame() / (uint64_t)force) & 1 ? RT_SCENE_BATTLE : RT_SCENE_WORLD;
+    }
+    int want = scene == RT_SCENE_WORLD ? 0 : 1;  // 0 = WORLD profile, 1 = BATTLE / MENUS profile
+    if (!g_settings.profiles_auto) {
+        if ((int)scene == last) return;
+        last = scene;
+        LOG("[profiles] scene=%s requested=%s switch=refused reason=profiles_auto-off\n",
+            scene == RT_SCENE_WORLD ? "world" : scene == RT_SCENE_BATTLE ? "battle/capture" : "menu/loading", want ? "battle-menus" : "world");
+        return;
+    }
+    if (want != last) { last = want; held = 0; }
+    if (held < PROFILE_HOLD) held++;
+    if (held < PROFILE_HOLD || want == applied) return;
+    if (settings_profile_prewarm_wanted() && !atomic_load(&g_prewarmed)) {
+        static bool said;
+        if (!said) { said = true; LOG("[profiles] scene=%s requested=%s switch=refused reason=renderer-not-prewarmed\n",
+                                      scene == RT_SCENE_WORLD ? "world" : "battle/menus", want ? "battle-menus" : "world"); }
+        return;
+    }
+    int h = want ? g_settings.profile_battle_height : g_settings.profile_world_height;
+    bool aa = want ? g_settings.profile_battle_smaa : g_settings.profile_world_smaa;
+    int fmt = want ? g_settings.profile_battle_aspect : g_settings.profile_world_aspect;
+    atomic_store(&g_live_height, h);
+    atomic_store(&g_live_smaa, aa ? 1 : 0);
+    LOG("[profiles] scene=%s profile=%s switch=applied present=%llu height=%d smaa=%d format=%d(cold) prewarmed=%d\n",
+        scene == RT_SCENE_WORLD ? "world" : scene == RT_SCENE_BATTLE ? "battle/capture" : "menu/loading", want ? "battle-menus" : "world",
+        (unsigned long long)renderer_game_frame(), h, aa, fmt, atomic_load(&g_prewarmed));
+    applied = want;
 }
 
 static void parse_line(const char *line) {
@@ -89,6 +139,7 @@ static void parse_line(const char *line) {
     else if (!strcmp(key, "vertex_read")) g_settings.vertex_read = !strcmp(val, "direct") ? VREAD_DIRECT : !strcmp(val, "copy") ? VREAD_COPY : VREAD_AUTO;
     else if (!strcmp(key, "dpad_move")) g_settings.dpad_move = atoi(val) != 0;
     else if (!strcmp(key, "wild_battle")) g_settings.wild_battle = atoi(val) != 0;
+    else if (!strcmp(key, "profiles_auto")) g_settings.profiles_auto = atoi(val) != 0;
     else if (!strcmp(key, "profile_world_height")) g_settings.profile_world_height = atoi(val) >= 360 && atoi(val) <= 4320 ? atoi(val) : 0;
     else if (!strcmp(key, "profile_battle_height")) g_settings.profile_battle_height = atoi(val) >= 360 && atoi(val) <= 4320 ? atoi(val) : 0;
     else if (!strcmp(key, "profile_world_smaa")) g_settings.profile_world_smaa = atoi(val) != 0;
@@ -159,6 +210,7 @@ void settings_save(void) {
     fprintf(f, "vertex_read = %s\n", g_settings.vertex_read == VREAD_DIRECT ? "direct" : g_settings.vertex_read == VREAD_COPY ? "copy" : "auto");
     fprintf(f, "dpad_move = %d\n", g_settings.dpad_move);
     fprintf(f, "wild_battle = %d\n", g_settings.wild_battle);
+    fprintf(f, "profiles_auto = %d\n", g_settings.profiles_auto);
     fprintf(f, "profile_world_height = %d\n", g_settings.profile_world_height);
     fprintf(f, "profile_battle_height = %d\n", g_settings.profile_battle_height);
     fprintf(f, "profile_world_smaa = %d\n", g_settings.profile_world_smaa);

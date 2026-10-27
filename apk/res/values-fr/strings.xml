@@ -184,7 +184,8 @@
     <string name="fmt_169">"16:9 du jeu (bandes noires)"</string>
     <string name="fmt_43">"4:3 (expérimental : interface étirée)"</string>
     <string name="fmt_fill">"Remplir l'écran (expérimental : interface étirée)"</string>
-    <string name="profiles_cold">"Profils mémorisés ; bascule automatique bloquée : les shaders ne sont pas préchauffés. Les réglages ci-dessus restent actifs."</string>
+    <string name="profiles_live">"Bascule automatique par scène : le profil Monde ou Combat / Menus règle la résolution interne et le SMAA sans recompiler de shader (post-traitement préchauffé au chargement). Le format d’image ne s’applique qu’au prochain démarrage. Désactivée : profils seulement mémorisés."</string>
+    <string name="profiles_auto">"Bascule automatique par scène"</string>
     <string name="profile_world">"Monde"</string>
     <string name="profile_battle">"Combat / Menus"</string>
     <string name="profile_off">"Désactivé"</string>

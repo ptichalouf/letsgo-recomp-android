@@ -184,7 +184,8 @@
     <string name="fmt_169">"Game 16:9 (black bars)"</string>
     <string name="fmt_43">"4:3 (experimental: stretched interface)"</string>
     <string name="fmt_fill">"Fill the screen (experimental: stretched interface)"</string>
-    <string name="profiles_cold">"Profiles saved; automatic switching blocked: the renderer does not prewarm shaders. The controls above remain active."</string>
+    <string name="profiles_live">"Automatic per-scene switch: the World or Battle / Menus profile sets the internal resolution and SMAA without recompiling any shader (post-processing is prewarmed at load). The image format only applies at the next launch. Off: profiles are only stored."</string>
+    <string name="profiles_auto">"Automatic per-scene switch"</string>
     <string name="profile_world">"World"</string>
     <string name="profile_battle">"Battle / Menus"</string>
     <string name="profile_off">"Off"</string>

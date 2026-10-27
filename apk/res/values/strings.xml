@@ -184,7 +184,8 @@
     <string name="fmt_169">"16:9 do jogo (faixas pretas)"</string>
     <string name="fmt_43">"4:3 (experimental: interface esticada)"</string>
     <string name="fmt_fill">"Preencher a tela (experimental: interface esticada)"</string>
-    <string name="profiles_cold">"Perfis guardados; troca automática bloqueada: o renderizador não pré-aquece os shaders. Os controles acima continuam ativos."</string>
+    <string name="profiles_live">"Troca automática por cena: resolução e SMAA do perfil Mundo ou Batalha / Menus, sem recompilar shaders (pós-processamento pré-aquecido ao carregar). O formato da imagem só vale no próximo início. Desligada: perfis apenas guardados."</string>
+    <string name="profiles_auto">"Troca automática por cena"</string>
     <string name="profile_world">"Mundo"</string>
     <string name="profile_battle">"Batalha / Menus"</string>
     <string name="profile_off">"Desligado"</string>

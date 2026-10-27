@@ -525,9 +525,14 @@ public class LetsGoLauncherActivity extends Activity {
         move(sections[1], autoDrv, importDrv);
         move(sections[2], resLabel, resSpinner, customRes, fmtLabel, fmtSpinner, fps60, smaa);
         TextView profileNote = new TextView(this);
-        profileNote.setText(Txt.t("profiles_cold", "Perfis guardados para uma próxima sessão. Troca automática bloqueada: o renderizador ainda não pré-aquece os shaders. Os controles acima continuam ativos."));
+        profileNote.setText(Txt.t("profiles_live", "Troca automática por cena: resolução e SMAA do perfil Mundo ou Batalha / Menus, sem recompilar shaders (os shaders de pós-processamento são pré-aquecidos ao carregar). O formato da imagem só vale no próximo início. Desligada: perfis apenas guardados."));
         profileNote.setTextColor(Theme.color(this, "text2"));
         sections[2].addView(profileNote, lp(-1, -2));
+        LinearLayout autoBox = new LinearLayout(this);
+        autoBox.setOrientation(LinearLayout.VERTICAL);
+        profileSpinner(autoBox, "profiles_auto", Txt.t("profiles_auto", "Troca automática por cena"),
+            new String[]{Txt.t("profile_off", "Desligado"), Txt.t("profile_on", "Ligado")}, new String[]{"0", "1"}, "0");
+        sections[2].addView(autoBox, lp(-1, -2));
         LinearLayout profiles = new LinearLayout(this);
         profiles.setOrientation(LinearLayout.HORIZONTAL);
         profiles.addView(profileColumn("world", Txt.t("profile_world", "Mundo")), new LinearLayout.LayoutParams(0, -2, 1));
@@ -1195,7 +1200,8 @@ public class LetsGoLauncherActivity extends Activity {
     private String profileFolder;
     private boolean profileReloading;
 
-    /** Cold-only requests, saved in the same per-game INI as the existing settings. No live renderer mutation. */
+    /** Per-scene profiles, saved in the same per-game INI as the existing settings. The runtime switches them live when
+     *  profiles_auto = 1 (settings.c settings_profile_apply); the image format is read at launch only. */
     private LinearLayout profileColumn(String profile, String title) {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);

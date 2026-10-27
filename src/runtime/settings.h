@@ -31,6 +31,7 @@ typedef struct {
     int profile_battle_height;  // BATTLE/MENUS profile: internal render height; 0 = shared render_height
     bool profile_world_smaa;    // WORLD profile anti-aliasing
     bool profile_battle_smaa;   // BATTLE/MENUS profile anti-aliasing
+    bool profiles_auto;         // switch the profiles live, by scene (internal height + SMAA); off = cold requests only
     int profile_world_aspect;   // PASP_* of the WORLD profile
     int profile_battle_aspect;  // PASP_* of the BATTLE/MENUS profile
     char game_lang[8];   // the game's language code ("en-US", "es"...: runtime/mods.c game_language)
@@ -44,4 +45,9 @@ void settings_save(void);
 typedef enum { RT_SCENE_MENU = 0, RT_SCENE_WORLD = 1, RT_SCENE_BATTLE = 2 } RtScene;
 RtScene fps60_profile_scene(void);
 void settings_profile_apply(void);
-bool settings_profiles_rejected(void);
+bool settings_profiles_rejected(void);  // true while the live switch is off (profiles_auto = 0)
+// Live profile (profiles_auto): written by the game thread at each present, read by the render thread.
+int settings_profile_live_height(void);  // internal render height in lines; 0 = no override (shared render_height)
+int settings_profile_live_smaa(void);    // 1 / 0 = SMAA forced on / off; -1 = no override (g_settings.antialias)
+bool settings_profile_prewarm_wanted(void);        // the render thread should build the post pipelines before the first switch
+void settings_profile_set_prewarmed(bool done);    // ... and says so here: until then a switch is refused

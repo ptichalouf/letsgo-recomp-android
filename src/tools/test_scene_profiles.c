@@ -80,12 +80,40 @@ int main(void) {
     assert(g_settings.profile_battle_height == 1440 && g_settings.profile_battle_smaa);
     puts("SETTINGS_OK: six profile keys, bounds, save/parse roundtrip");
 
+    // Live switch. Off (default): nothing changes, the refusal is logged once per scene.
     Settings before = g_settings;
     world_hook(NULL, FIELD_UPDATE); fps60_present();
     battle_hook(NULL, BATTLE_START); fps60_present();
     fps60_scene_begin(); fps60_present();
     assert(settings_profiles_rejected());
+    assert(settings_profile_live_height() == 0 && settings_profile_live_smaa() == -1);
     assert(!memcmp(&before, &g_settings, sizeof before));
-    puts("GUARD_OK: scene transitions change no rendering setting; no renderer/shader dependency linked");
+    puts("GUARD_OK: profiles_auto off: no live value, no rendering setting changed");
+
+    // On, SMAA wanted: refused until the renderer says its post pipelines are prewarmed.
+    parse_line("profiles_auto = 1");
+    g_settings.profile_world_height = 720; g_settings.profile_battle_height = 1440;
+    g_settings.profile_world_smaa = false; g_settings.profile_battle_smaa = true;
+    assert(!settings_profiles_rejected() && settings_profile_prewarm_wanted());
+    for (int i = 0; i < 40; i++) { battle_hook(NULL, BATTLE_START); fps60_present(); }
+    assert(settings_profile_live_height() == 0 && settings_profile_live_smaa() == -1);  // not prewarmed: refused
+    settings_profile_set_prewarmed(true);
+    // a one-frame world flash does not switch (hold), a settled scene does
+    for (int i = 0; i < 5; i++) { world_hook(NULL, FIELD_UPDATE); fps60_present(); }
+    assert(settings_profile_live_height() == 0);
+    for (int i = 0; i < 30; i++) { battle_hook(NULL, BATTLE_START); fps60_present(); }
+    assert(settings_profile_live_height() == 1440 && settings_profile_live_smaa() == 1);
+    for (int i = 0; i < 30; i++) { world_hook(NULL, FIELD_UPDATE); fps60_present(); }
+    assert(settings_profile_live_height() == 720 && settings_profile_live_smaa() == 0);
+    assert(g_settings.antialias == before.antialias && g_settings.res_height == before.res_height);  // shared settings untouched
+    puts("LIVE_OK: refused until prewarmed, hold against flashes, world 720/no SMAA <-> battle 1440/SMAA, shared settings untouched");
+
+    // On, nothing to prewarm (no SMAA anywhere, bilinear): switches at once, no renderer dependency.
+    settings_profile_set_prewarmed(false);
+    g_settings.profile_battle_smaa = false; g_settings.upscaler = UPSCALE_BILINEAR;
+    assert(!settings_profile_prewarm_wanted());
+    for (int i = 0; i < 30; i++) { battle_hook(NULL, BATTLE_START); fps60_present(); }
+    assert(settings_profile_live_height() == 1440 && settings_profile_live_smaa() == 0);
+    puts("NOWARM_OK: no post pass to build, no wait");
     return 0;
 }
