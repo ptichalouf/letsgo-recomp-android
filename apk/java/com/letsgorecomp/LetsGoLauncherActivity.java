@@ -296,7 +296,7 @@ public class LetsGoLauncherActivity extends Activity {
         });
 
         // ---- Game settings (written to larecomp.ini in the game folder) ----
-        TextView cfgTitle = new TextView(this);
+        final TextView cfgTitle = new TextView(this);
         cfgTitle.setText(Txt.t("cfg", "Configurações"));
         cfgTitle.setTextSize(18);
         cfgTitle.setTextColor(Color.WHITE);
@@ -502,10 +502,61 @@ public class LetsGoLauncherActivity extends Activity {
         hint.setPadding(0, dp(24), 0, 0);
         root.addView(hint, lp(-1, -2));
 
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        final android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         scroll.setFillViewport(true);
+        scroll.setScrollbarFadingEnabled(false);  // the scrollbar stays: the page is longer than the screen
         scroll.addView(root);
-        setContentView(scroll);
+
+        // "Settings ↓" sits at the bottom while the settings are still below the fold (SettingsJump); a tap scrolls
+        // to them. Stand-in until the launcher's redesign; nothing else on the page moves.
+        final Button jump = new Button(this);
+        jump.setText(Txt.t("cfg_jump", "Configurações ↓"));
+        jump.setAllCaps(false);
+        jump.setTextSize(16);
+        jump.setTextColor(Color.WHITE);
+        android.graphics.drawable.GradientDrawable jumpBg = new android.graphics.drawable.GradientDrawable();
+        jumpBg.setColor(Color.rgb(46, 110, 200));
+        jumpBg.setCornerRadius(dp(24));
+        jump.setBackground(jumpBg);
+        jump.setMinHeight(dp(48));
+        jump.setMinimumHeight(dp(48));
+        jump.setPadding(dp(24), 0, dp(24), 0);
+        jump.setElevation(dp(6));
+        jump.setOnClickListener(new android.view.View.OnClickListener() {
+            @Override public void onClick(android.view.View v) {
+                scroll.smoothScrollTo(0, SettingsJump.target(cfgTitle.getTop(), dp(8)));
+            }
+        });
+        // a bar under the page, not over it: the shortcut never hides a button. Its height is judged against the
+        // whole screen (frame), which doesn't change when the bar comes and goes, so it cannot flicker.
+        final LinearLayout bar = new LinearLayout(this);
+        bar.setGravity(Gravity.CENTER);
+        bar.setBackgroundColor(Color.rgb(20, 22, 28));
+        bar.setPadding(0, dp(8), 0, dp(8));
+        bar.addView(jump, new LinearLayout.LayoutParams(-2, -2));
+        bar.setVisibility(android.view.View.GONE);
+        final LinearLayout frame = new LinearLayout(this);
+        frame.setOrientation(LinearLayout.VERTICAL);
+        frame.setBackgroundColor(Color.rgb(20, 22, 28));
+        frame.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        frame.addView(bar, new LinearLayout.LayoutParams(-1, -2));
+        setContentView(frame);
+
+        final Runnable updateJump = new Runnable() {
+            @Override public void run() {
+                boolean show = SettingsJump.show(cfgTitle.getTop(), scroll.getScrollY(), frame.getHeight(),
+                        scroll.canScrollVertically(1));
+                int vis = show ? android.view.View.VISIBLE : android.view.View.GONE;
+                if (bar.getVisibility() != vis) bar.setVisibility(vis);
+            }
+        };
+        scroll.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
+            @Override public void onScrollChange(android.view.View v, int x, int y, int ox, int oy) { updateJump.run(); }
+        });
+        // rotation, fold/unfold (the activity is kept: configChanges), status or driver text changing height
+        scroll.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() { updateJump.run(); }
+        });
         refreshStatus();
     }
 

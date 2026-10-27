@@ -25,9 +25,11 @@
                  android:extractNativeLibs="true"
                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                  android:hardwareAccelerated="true">
+        <!-- The launcher and the log follow the phone (fold, unfold, rotation; the system's rotation lock is
+             respected); only the game (LetsGoActivity) stays in landscape. configChanges keeps their screen alive. -->
         <activity android:name="com.letsgorecomp.LetsGoLauncherActivity"
                   android:label="Let's Go Recomp"
-                  android:screenOrientation="landscape"
+                  android:screenOrientation="unspecified"
                   android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode"
                   android:exported="true">
             <intent-filter>
@@ -37,7 +39,8 @@
         </activity>
         <activity android:name="com.letsgorecomp.LogActivity"
                   android:label="Log"
-                  android:screenOrientation="landscape"
+                  android:screenOrientation="unspecified"
+                  android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboard|keyboardHidden|navigation|uiMode"
                   android:exported="false" />
         <activity android:name="com.letsgorecomp.LetsGoActivity"
                   android:label="Let's Go Recomp"
