@@ -47,7 +47,7 @@ final class GameBanana {
     /** The checks on a file before an in-app install (pure, tested in ModStoreTest). */
     static String fileProblem(String name, long size, String av, String analysis, boolean archived) {
         String n = name == null ? "" : name.toLowerCase(Locale.ROOT);
-        if (!(n.endsWith(".zip") || n.endsWith(".rar") || n.endsWith(".7z"))) return "format";
+        if (!ModUnpack.hasExtension(n)) return "format";
         if (archived) return "archived";
         if (av == null || !av.equals("clean")) return "antivirus";
         if (analysis != null && !analysis.isEmpty() && !analysis.equals("ok")) return "analysis";

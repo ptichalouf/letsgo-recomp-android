@@ -9,6 +9,44 @@ import java.io.File;
 final class ModUnpack {
     private ModUnpack() {}
 
+    // What libmodunpack opens: modunpack.c turns on libarchive's zip, rar, rar5 and 7zip readers, nothing else.
+    // The file picker, the "unsupported format" message and GameBanana's file check all read these two lists;
+    // apk/test/ModFormatsTest.java holds them equal to modunpack.c's readers.
+    /** File name endings (lower case) of the archives libmodunpack opens. */
+    static final String[] EXTENSIONS = {".zip", ".rar", ".7z"};
+    /** Every MIME type phones give those archives. A .rar alone has four: Android's own MimeTypeMap says
+     *  application/rar, and a picker filter without it greys the file out (seen on the Fold4, Android 16). */
+    static final String[] MIME_TYPES = {
+        "application/zip", "application/x-zip-compressed",
+        "application/vnd.rar", "application/x-rar-compressed", "application/rar", "multipart/rar",
+        "application/x-7z-compressed"};
+    /** The type of a file the provider can't name: the picker shows it, and only its extension can admit it. */
+    static final String UNKNOWN_TYPE = "application/octet-stream";
+
+    /** The picker's EXTRA_MIME_TYPES: the archive types, plus the unknown type (sorted by accepts() afterwards). */
+    static String[] pickerTypes() {
+        String[] t = java.util.Arrays.copyOf(MIME_TYPES, MIME_TYPES.length + 1);
+        t[MIME_TYPES.length] = UNKNOWN_TYPE;
+        return t;
+    }
+
+    /** True when the name ends with one of EXTENSIONS (any case). */
+    static boolean hasExtension(String name) {
+        if (name == null) return false;
+        String l = name.toLowerCase(java.util.Locale.ROOT);
+        for (String e : EXTENSIONS) if (l.endsWith(e)) return true;
+        return false;
+    }
+
+    /** A picked document worth unpacking: an archive by its name, or, when the name says nothing, by its type. */
+    static boolean accepts(String name, String mime) {
+        if (hasExtension(name)) return true;
+        if (mime == null) return false;
+        String m = mime.toLowerCase(java.util.Locale.ROOT);
+        for (String t : MIME_TYPES) if (t.equals(m)) return true;
+        return false;
+    }
+
     /** The mods folder: <files dir>/mods (private storage, case-sensitive, ~100x faster than shared storage). */
     static File dir(android.content.Context c) {
         return new File(c.getFilesDir(), "mods");

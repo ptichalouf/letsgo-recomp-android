@@ -144,8 +144,9 @@ final class ModsPanel {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("*/*");
-        i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/x-zip-compressed", "application/vnd.rar",
-            "application/x-rar-compressed", "application/x-7z-compressed", "application/octet-stream"});
+        // Every type ModUnpack opens, plus the unknown type: a picker greys out whatever is not listed (a .rar is
+        // application/rar on Android 16). An unknown-type file is then admitted by its extension only (accepts()).
+        i.putExtra(Intent.EXTRA_MIME_TYPES, ModUnpack.pickerTypes());
         try { a.startActivityForResult(i, REQ_MOD_FILE); }
         catch (android.content.ActivityNotFoundException e) { toast(Txt.t("no_picker", "Este aparelho não tem seletor de pastas.")); }
     }
@@ -153,8 +154,15 @@ final class ModsPanel {
     /** The launcher forwards its results here; true = it was ours. */
     boolean onActivityResult(int req, int res, Intent data) {
         if (req != REQ_MOD_FILE) return false;
-        if (res == Activity.RESULT_OK && data != null && data.getData() != null)
-            install(displayName(data.getData()), data.getData(), null, null, null);
+        if (res == Activity.RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            String name = displayName(uri), type = a.getContentResolver().getType(uri);
+            android.util.Log.i("lasrecomp", "[mods] picked '" + name + "' type=" + type + " accepted=" + ModUnpack.accepts(name, type));
+            if (ModUnpack.accepts(name, type)) install(name, uri, null, null, null);
+            else new AlertDialog.Builder(a).setTitle(name).setMessage(String.format(Txt.t("mods_fail_format",
+                "O formato .%1$s ainda não é suportado: descompacte o arquivo e adicione a pasta."), ext(name)))
+                .setPositiveButton(android.R.string.ok, null).show();
+        }
         return true;
     }
 
@@ -230,6 +238,10 @@ final class ModsPanel {
         }, "mod-install").start();
     }
 
+    private static String ext(String fileName) {
+        return fileName != null && fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT) : "";
+    }
+
     /** ModUnpack's refusal, said the screen spec's way (ECRAN-MODS.md §5). */
     private String failure(ModStore.Unpacked r, String fileName) {
         if (r.err == 2) return r.code > 0
@@ -240,8 +252,8 @@ final class ModsPanel {
             return String.format(Txt.t("mods_fail_space", "Espaço insuficiente: precisa de %1$s, restam %2$s. Libere espaço e tente de novo."),
                 "?", android.text.format.Formatter.formatShortFileSize(a, fs.getAvailableBytes()));
         }
-        String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT) : "";
-        if (r.err == 1 && !ext.isEmpty() && !ext.equals("zip") && !ext.equals("rar") && !ext.equals("7z"))
+        String ext = ext(fileName);
+        if (r.err == 1 && !ext.isEmpty() && !ModUnpack.hasExtension(fileName))
             return String.format(Txt.t("mods_fail_format", "O formato .%1$s ainda não é suportado: descompacte o arquivo e adicione a pasta."), ext);
         return Txt.t("mods_fail_unreadable", "Arquivo ilegível: download incompleto, arquivo danificado ou protegido por senha. Baixe de novo.");
     }

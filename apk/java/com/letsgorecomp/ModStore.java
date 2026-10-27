@@ -125,7 +125,7 @@ final class ModStore {
     static String stripExt(String n) {
         if (n == null) return "mod";
         String l = n.toLowerCase(Locale.ROOT);
-        for (String e : new String[]{".zip", ".rar", ".7z"}) if (l.endsWith(e)) return n.substring(0, n.length() - e.length());
+        for (String e : ModUnpack.EXTENSIONS) if (l.endsWith(e)) return n.substring(0, n.length() - e.length());
         return n;
     }
 
