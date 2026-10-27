@@ -316,4 +316,7 @@
     <string name="mods_conflict">"%1$s: está em %2$s e em %3$s. Vale %2$s (mais acima)."</string>
     <string name="mods_conflicts_more">"… e mais %1$d."</string>
     <string name="mods_installed_rank">"Ele fica em nº %1$d na ordem: os mods acima dele valem nos arquivos em comum."</string>
+    <string name="display_stalled_title">"A imagem parou"</string>
+    <string name="display_stalled_body">"O jogo continua, mas nada aparece na tela."</string>
+    <string name="display_resume">"Retomar a imagem"</string>
 </resources>

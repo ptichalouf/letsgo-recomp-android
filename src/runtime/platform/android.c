@@ -44,24 +44,37 @@ extern char **environ;
 #endif
 
 #ifdef LETSGO_ADRENOTOOLS
-// The ANativeWindow for vkCreateAndroidSurfaceKHR, acquired via JNI in nativeSetup.
+// The ANativeWindow for vkCreateAndroidSurfaceKHR, acquired via JNI.
 // (SDL3 removed SDL_syswm.h, so we can't get it from the SDL_Window.)
+//
+// SurfaceView reuses its Java Surface while replacing the native producer. Java object identity
+// is NOT a generation check. Re-acquire the native target on every Vulkan surface creation,
+// even if no poll observed the invalid interval. Keep one owned reference until the next query.
+// NULL means "no usable surface right now": the caller waits and asks again.
 ANativeWindow *g_letsgo_native_window = NULL;
 // JavaVM for attaching JNI when we need the ANativeWindow lazily (surface isn't
 // ready during nativeSetup, which runs before SDLActivity.onCreate).
 JavaVM *g_letsgo_jvm = NULL;
+static jclass g_sdl_activity;  // resolved on the Java caller's classloader, not an attached pthread
+static jfieldID g_sdl_surface;
+// The fetch runs on the render thread (the surface is rebuilt there) and, at startup, on the
+// thread that creates the window: one mutex for both.
+static pthread_mutex_t g_letsgo_window_lock = PTHREAD_MUTEX_INITIALIZER;
 
-// Get the ANativeWindow from SDLActivity.mSurface via JNI. Called lazily from the
-// Vulkan init (after the Activity and Surface are fully created).
+// Get the ANativeWindow from SDLActivity.mSurface via JNI. Called from the Vulkan surface
+// creation (after the Activity and Surface are fully created).
 ANativeWindow *letsgo_get_native_window(void) {
-    if (g_letsgo_native_window) return g_letsgo_native_window;
     if (!g_letsgo_jvm) return NULL;
+    pthread_mutex_lock(&g_letsgo_window_lock);
     JNIEnv *env = NULL;
-    if ((*g_letsgo_jvm)->AttachCurrentThread(g_letsgo_jvm, &env, NULL) != 0) return NULL;
+    if ((*g_letsgo_jvm)->AttachCurrentThread(g_letsgo_jvm, &env, NULL) != 0) {
+        pthread_mutex_unlock(&g_letsgo_window_lock);
+        return NULL;
+    }
     ANativeWindow *win = NULL;
-    jclass sdlActivity = (*env)->FindClass(env, "org/libsdl/app/SDLActivity");
+    jclass sdlActivity = g_sdl_activity;
     if (sdlActivity) {
-        jfieldID fid = (*env)->GetStaticFieldID(env, sdlActivity, "mSurface", "Lorg/libsdl/app/SDLSurface;");
+        jfieldID fid = g_sdl_surface;
         if (fid) {
             jobject surfaceView = (*env)->GetStaticObjectField(env, sdlActivity, fid);
             if (surfaceView) {
@@ -75,20 +88,33 @@ ANativeWindow *letsgo_get_native_window(void) {
                         if (getSurface) {
                             jobject surface = (*env)->CallObjectMethod(env, holder, getSurface);
                             if (surface) {
-                                win = ANativeWindow_fromSurface(env, surface);
+                                // A destroyed surface is still returned by the holder, but it is not
+                                // valid any more: that is "no surface right now", not "a new one".
+                                jclass surfaceClass = (*env)->GetObjectClass(env, surface);
+                                jmethodID isValid = (*env)->GetMethodID(env, surfaceClass, "isValid", "()Z");
+                                bool valid = isValid && (*env)->CallBooleanMethod(env, surface, isValid) != JNI_FALSE;
+                                // Acquire BEFORE releasing: fromSurface owns one reference, including
+                                // when it returns the same target. Never compare the Java wrapper.
+                                if (valid) win = ANativeWindow_fromSurface(env, surface);
+                                if (g_letsgo_native_window) ANativeWindow_release(g_letsgo_native_window);
+                                g_letsgo_native_window = win;
+                                (*env)->DeleteLocalRef(env, surfaceClass);
                                 (*env)->DeleteLocalRef(env, surface);
                             }
                         }
+                        (*env)->DeleteLocalRef(env, hClass);
                         (*env)->DeleteLocalRef(env, holder);
                     }
                 }
+                (*env)->DeleteLocalRef(env, svClass);
                 (*env)->DeleteLocalRef(env, surfaceView);
             }
         }
-        (*env)->DeleteLocalRef(env, sdlActivity);
     }
+    // Never carry a failed lookup into the next JNI call on this long-lived native thread.
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
     // Don't detach: the Vulkan thread stays attached for the process lifetime.
-    if (win) g_letsgo_native_window = win;
+    pthread_mutex_unlock(&g_letsgo_window_lock);
     return win;
 }
 #endif
@@ -102,6 +128,14 @@ JNIEXPORT void JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeSetup(JNIEnv *
     (void)cls;
 #ifdef LETSGO_ADRENOTOOLS
     (*env)->GetJavaVM(env, &g_letsgo_jvm);
+    if (!g_sdl_activity) {
+        jclass sdl = (*env)->FindClass(env, "org/libsdl/app/SDLActivity");
+        if (!sdl) return;  // propagate the Java-side setup error, not a pending pthread exception
+        g_sdl_surface = (*env)->GetStaticFieldID(env, sdl, "mSurface", "Lorg/libsdl/app/SDLSurface;");
+        if (g_sdl_surface) g_sdl_activity = (*env)->NewGlobalRef(env, sdl);
+        (*env)->DeleteLocalRef(env, sdl);
+        if (!g_sdl_activity) return;
+    }
 #endif
     const char *fd = (*env)->GetStringUTFChars(env, files_dir, NULL);
     const char *ld = (*env)->GetStringUTFChars(env, lib_dir, NULL);
@@ -407,4 +441,27 @@ JNIEXPORT jdouble JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeGetFps(JNIE
 JNIEXPORT jdouble JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeGetFrameMs(JNIEnv *env, jclass cls) {
     (void)env; (void)cls;
     return g_frame_ms;
+}
+// ---- the display guard: is the picture reaching the screen? (runtime/nvn/vulkan/device.c)
+// 1 when the engine runs but nothing has been presented for a while (the screen is black).
+extern int display_stalled(void);
+extern int display_stalled_ms(void);
+JNIEXPORT jboolean JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeDisplayStalled(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    return display_stalled() ? JNI_TRUE : JNI_FALSE;
+}
+JNIEXPORT jint JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeDisplayStalledMs(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    return (jint)display_stalled_ms();
+}
+// The player pressed "resume the picture": ask the runtime to rebuild its surface and swapchain.
+extern void display_resume_requested(void);
+extern void display_dead(void);
+JNIEXPORT void JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeDisplaySurfaceGone(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    display_dead();
+}
+JNIEXPORT void JNICALL Java_com_letsgorecomp_LetsGoActivity_nativeResumeDisplay(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    display_resume_requested();
 }

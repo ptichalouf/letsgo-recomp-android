@@ -16,6 +16,11 @@ public class LetsGoActivity extends SDLActivity {
         };
     }
 
+    // Separate opt-in: the master diagnostic gate alone must not stop presentation.
+    static boolean forceDisplayStalled(String diagProperty, String forceProperty) {
+        return "1".equals(diagProperty) && "1".equals(forceProperty);
+    }
+
     private void applyFullscreen() {
         // Simplified: rely on theme (@style/Fullscreen) + SDL_SetWindowFullscreen.
         // SDLActivity handles COMMAND_CHANGE_WINDOW_STYLE via WindowInsetsController.
@@ -75,6 +80,18 @@ public class LetsGoActivity extends SDLActivity {
                 .invoke(null, "debug.larecomp.diag", dflt);
             diag = "1".equals(String.valueOf(v).trim());
         } catch (Throwable ignored) { }
+        // Strict property gate, independent of the legacy LARECOMP_DIAG fallback.
+        try {
+            java.lang.reflect.Method get = Class.forName("android.os.SystemProperties")
+                    .getMethod("get", String.class, String.class);
+            String master = String.valueOf(get.invoke(null, "debug.larecomp.diag", "0"));
+            String force = String.valueOf(get.invoke(null, "debug.larecomp.force_display_stalled", "0"));
+            if (forceDisplayStalled(master, force))
+                android.system.Os.setenv("LARECOMP_FORCE_DISPLAY_STALLED", "1", true);
+            else android.system.Os.unsetenv("LARECOMP_FORCE_DISPLAY_STALLED");
+        } catch (Throwable ignored) {
+            try { android.system.Os.unsetenv("LARECOMP_FORCE_DISPLAY_STALLED"); } catch (Exception unused) { }
+        }
         String[] probes = {"LARECOMP_DUMP_FONT_GLSL", "LARECOMP_TEXT_DIAG", "LARECOMP_VS_RANGE_DIAG",
                            "LARECOMP_GCOPY_DIAG"};
         for (String k : probes) {
@@ -212,12 +229,26 @@ public class LetsGoActivity extends SDLActivity {
         }
         nativeSetup(gameDir, getApplicationInfo().nativeLibraryDir);
         super.onCreate(savedInstanceState);
+        // SurfaceView can replace the native producer without changing its Java Surface and
+        // without a Vulkan error. Observe lifecycle changes even while presentation is READY.
+        mSurface.getHolder().addCallback(new android.view.SurfaceHolder.Callback() {
+            public void surfaceCreated(android.view.SurfaceHolder h) { nativeResumeDisplay(); }
+            public void surfaceChanged(android.view.SurfaceHolder h, int f, int w, int height) {
+                nativeResumeDisplay();
+            }
+            public void surfaceDestroyed(android.view.SurfaceHolder h) { nativeDisplaySurfaceGone(); }
+        });
         // Apply fullscreen AFTER super.onCreate (SDLActivity resets UI visibility)
         applyFullscreen();
         // Touch controls - toggleable in launcher settings. Default: the minimal layout in the black bars
         // (TouchControls); "Layout completo" in the launcher brings back the old full one (GamepadOverlay).
         android.content.SharedPreferences prefs = getSharedPreferences("letsgo", MODE_PRIVATE);
         boolean touchEnabled = prefs.getBoolean("touch", true);
+        // Android overlay below touch controls, independent of the Vulkan SurfaceView.
+        guard = new DisplayGuard(this);
+        addContentView(guard, new android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         if (touchEnabled) {
             boolean classic = "classic".equals(prefs.getString("touch_layout", "minimal"));
             android.util.Log.i("lasrecomp", "[touch] layout " + (classic ? "classic" : "minimal"));
@@ -228,12 +259,16 @@ public class LetsGoActivity extends SDLActivity {
         }
     }
 
+    /** The display guard (the black-screen guard). */
+    private DisplayGuard guard;
+
     /** The game activity is alive in this process (a driver trial is then still running, not failed). */
     static volatile boolean running;
 
     @Override
     protected void onDestroy() {
         running = false;
+        if (guard != null) guard.stop();
         GpuDrivers.gameClosed(this);
         super.onDestroy();
     }
@@ -247,6 +282,8 @@ public class LetsGoActivity extends SDLActivity {
         // the phone's motion sensor aims the Poke Balls (launcher setting, off by default: GyroAim.java)
         if (gyro == null && GyroAim.enabled(this)) gyro = new GyroAim(this);
         if (gyro != null) gyro.resume();
+        // The display guard watches the presentation while the game is in the foreground.
+        if (guard != null) guard.start();
     }
 
     private GyroAim gyro;
@@ -254,6 +291,7 @@ public class LetsGoActivity extends SDLActivity {
     @Override
     protected void onPause() {
         if (gyro != null) gyro.pause();
+        if (guard != null) guard.stop();
         super.onPause();
     }
 
@@ -275,4 +313,11 @@ public class LetsGoActivity extends SDLActivity {
     public static native void nativeSetStick(int stick, int x, int y);
     public static native double nativeGetFps();
     public static native double nativeGetFrameMs();
+    /** True when the engine runs but nothing reaches the screen (the black-screen guard). */
+    public static native boolean nativeDisplayStalled();
+    /** How long the display has been silent, in ms (0 when it is fine). */
+    public static native int nativeDisplayStalledMs();
+    /** The player asked to rebuild the surface and show the picture again. */
+    public static native void nativeResumeDisplay();
+    private static native void nativeDisplaySurfaceGone();
 }

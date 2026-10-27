@@ -259,4 +259,7 @@
     <string name="mods_conflict">"%1$s: in %2$s and in %3$s. %2$s wins (higher)."</string>
     <string name="mods_conflicts_more">"… and %1$d more."</string>
     <string name="mods_installed_rank">"It is #%1$d in the order: the mods above it win on the files they share."</string>
+    <string name="display_stalled_title">"The picture stopped"</string>
+    <string name="display_stalled_body">"The game is running, but nothing shows on the screen."</string>
+    <string name="display_resume">"Resume the picture"</string>
 </resources>

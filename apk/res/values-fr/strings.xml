@@ -259,4 +259,7 @@
     <string name="mods_conflict">"%1$s : dans %2$s et dans %3$s. C\'est %2$s qui l\'emporte (plus haut)."</string>
     <string name="mods_conflicts_more">"… et %1$d de plus."</string>
     <string name="mods_installed_rank">"Il est n° %1$d dans l\'ordre : les mods au-dessus de lui l\'emportent sur les fichiers en commun."</string>
+    <string name="display_stalled_title">"L\'image s\'est arrêtée"</string>
+    <string name="display_stalled_body">"Le jeu continue, mais rien ne s\'affiche à l\'écran."</string>
+    <string name="display_resume">"Reprendre l\'image"</string>
 </resources>

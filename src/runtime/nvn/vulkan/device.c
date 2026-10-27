@@ -466,12 +466,20 @@ static void load_dispatch_device(void) {   // after vkCreateDevice (device comma
 // Accessor for surface recovery
 SDL_Window *vk_sdl_window(void) { return window; }
 
+#ifdef LETSGO_ADRENOTOOLS
+// Owned by platform/android.c; NULL while Android has no usable surface.
+// Never rebuild Vulkan on the native target cached before a pause.
+static ANativeWindow *current_native_window(void) {
+    extern ANativeWindow *letsgo_get_native_window(void);
+    return letsgo_get_native_window();
+}
+#endif
+
 // Use the selected loader for both initial creation and surface recovery.
 static bool create_surface(void) {
 #ifdef LETSGO_ADRENOTOOLS
-    extern ANativeWindow *letsgo_get_native_window(void);
-    ANativeWindow *nw = letsgo_get_native_window();
-    if (!nw) return SDL_SetError("Android native window is not available");
+    ANativeWindow *nw = current_native_window();
+    if (!nw) return SDL_SetError("no Android surface right now (the activity is in the background)");
     VkAndroidSurfaceCreateInfoKHR ci = {.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR, .window = nw};
     VkResult r = vkCreateAndroidSurfaceKHR(g_vk.inst, &ci, NULL, &g_vk.surface);
     if (r != VK_SUCCESS) return SDL_SetError("vkCreateAndroidSurfaceKHR: %d", r);
@@ -479,6 +487,82 @@ static bool create_surface(void) {
 #else
     return SDL_Vulkan_CreateSurface(window, g_vk.inst, NULL, &g_vk.surface);
 #endif
+}
+
+// Watch successful queue presentations, not physical scanout. Lifecycle callbacks also
+// mark the target stale. Render-thread writes / Android UI reads use atomics.
+static atomic_uint g_last_present_ms;
+static atomic_uint g_stalled_since_ms;
+// UI thread raises a flag; render thread owns the swapchain.
+static atomic_bool g_resume_requested;
+// How long the display may stay silent before the game says so (LARECOMP_BLACK_SCREEN_MS, 8 s).
+static Uint32 black_screen_limit_ms(void) {
+    static Uint32 v = 0;
+    if (!v) {
+        const char *e = getenv("LARECOMP_BLACK_SCREEN_MS");
+        v = e ? (Uint32)atoi(e) : 8000;
+    }
+    return v;
+}
+// Called by the present path and by the state machine: the display works again.
+void display_alive(void) {
+    atomic_store(&g_last_present_ms, SDL_GetTicks());
+    atomic_store(&g_stalled_since_ms, 0);
+}
+// Called when the surface goes away: the display is dead until a new one is built.
+void display_dead(void) {
+    if (!atomic_load(&g_stalled_since_ms)) atomic_store(&g_stalled_since_ms, SDL_GetTicks());
+}
+// 1 when the display has been silent for too long: the engine is alive but the screen shows nothing.
+int display_stalled(void) {
+    Uint32 limit = black_screen_limit_ms();
+    if (!limit) return 0;                       // 0 = the guard is off
+    Uint32 now = SDL_GetTicks();
+    Uint32 stalled = atomic_load(&g_stalled_since_ms);
+    if (stalled && (Uint32)(now - stalled) > limit) return 1;
+    // Nothing reached the screen since the last good frame.
+    Uint32 last = atomic_load(&g_last_present_ms);
+    if (last && (Uint32)(now - last) > limit) return 1;
+    return 0;
+}
+// How long the display has been silent, in ms (0 when it is fine).
+int display_stalled_ms(void) {
+    Uint32 now = SDL_GetTicks();
+    Uint32 worst = 0;
+    Uint32 stalled = atomic_load(&g_stalled_since_ms);
+    if (stalled) { Uint32 d = now - stalled; if (d > worst) worst = d; }
+    Uint32 last = atomic_load(&g_last_present_ms);
+    if (last) { Uint32 d = now - last; if (d > worst) worst = d; }
+    return (int)worst;
+}
+// Rebuild on request; the next accepted present clears the watchdog.
+void display_resume_requested(void) {
+    // Android lifecycle callbacks and the manual button both request a render-thread rebuild.
+    LOG("[vk] display surface rebuild requested\n");
+    atomic_store(&g_resume_requested, true);
+}
+
+// Diagnostic recipe only. Java exports the variable only when debug.larecomp.diag=1
+// AND debug.larecomp.force_display_stalled=1. Hold before acquire (no semaphore/image
+// left in flight), after the first good picture, until a rebuild request releases it.
+static bool force_display_stalled(bool resume) {
+    static int enabled = -1;
+    static bool started, finished;
+    if (enabled < 0) {
+        const char *e = getenv("LARECOMP_FORCE_DISPLAY_STALLED");
+        enabled = e && !strcmp(e, "1");
+    }
+    if (!enabled || finished) return false;
+    if (resume && started) {
+        finished = true;
+        LOG("[display-guard] diagnostic hold released by rebuild request\n");
+        return false;
+    }
+    if (!atomic_load(&g_last_present_ms)) return false;
+    if (!started) LOG("[display-guard] diagnostic hold started at %u ms (engine continues)\n", (unsigned)SDL_GetTicks());
+    started = true;
+    display_dead();
+    return true;
 }
 
 // ================================================================== instance / device
@@ -915,6 +999,7 @@ static void recreate_swapchain(void) {
 static void recover_lost_surface(void) {
     LOG("[vk] surface lost: recreating surface and swapchain\n");
     g_vk.present_state = PRESENT_SURFACE_LOST;
+    display_dead();   // the display is dead until a new surface is built on a live window
     vkDeviceWaitIdle(g_vk.dev);
     // Destroy swapchain first (depends on surface)
     if (g_vk.swapchain) {
@@ -926,7 +1011,7 @@ static void recover_lost_surface(void) {
         vkDestroySurfaceKHR(g_vk.inst, g_vk.surface, NULL);
         g_vk.surface = VK_NULL_HANDLE;
     }
-    // Recreate surface from SDL window
+    // Recreate surface from the window's CURRENT surface.
     extern SDL_Window *vk_sdl_window(void);
     SDL_Window *window = vk_sdl_window();
     if (window) {
@@ -955,6 +1040,20 @@ static void recover_lost_surface(void) {
         LOG("[vk] surface is null, waiting for window\n");
         g_vk.present_state = PRESENT_WAITING_FOR_WINDOW;
     }
+}
+
+// Retry WAITING every frame: surfaceCreated can arrive after the failed initial rebuild.
+static void retry_waiting_for_window(void) {
+    extern SDL_Window *vk_sdl_window(void);
+    SDL_Window *window = vk_sdl_window();
+    if (!window) return;
+#ifdef LETSGO_ADRENOTOOLS
+    // No surface yet (the activity is in the background): nothing to do, try again next frame.
+    if (!current_native_window()) return;
+#endif
+    LOG("[vk] retrying surface creation (a new surface is available)\n");
+    g_vk.present_state = PRESENT_SURFACE_LOST;
+    recover_lost_surface();
 }
 
 // ================================================================== frames (start screen and game)
@@ -990,6 +1089,15 @@ static Frame cur_frame;
 // nothing to draw into (minimised window).
 bool vk_frame_begin(const float clear[4]) {
     cur_frame.ok = false;
+    // Hold before acquire, never after submitting GPU work. A rebuild ends the one-shot probe.
+    bool resume = atomic_exchange(&g_resume_requested, false);
+    if (force_display_stalled(resume)) return false;
+    // The player pressed "resume the picture": rebuild the surface and the swapchain now.
+    if (resume) {
+        LOG("[vk] frame_begin: the player asked to resume the picture\n");
+        g_vk.present_state = PRESENT_SURFACE_LOST;
+        recover_lost_surface();
+    }
     // MISSÃO A v0065: não executa acquire/present se não estiver READY
     if (g_vk.present_state != PRESENT_READY) {
         // Tenta recuperar se estiver em SURFACE_LOST (mas não em loop apertado)
@@ -1001,8 +1109,13 @@ bool vk_frame_begin(const float clear[4]) {
             LOG("[vk] frame_begin: attempting recovery from SURFACE_LOST\n");
             recover_lost_surface();
         }
+        // Retry when the new Android surface becomes available.
+        if (g_vk.present_state == PRESENT_WAITING_FOR_WINDOW) {
+            retry_waiting_for_window();
+        }
         // Se ainda não está READY, pula o frame
         if (g_vk.present_state != PRESENT_READY) {
+            display_dead();
             return false;
         }
     }
@@ -1137,6 +1250,13 @@ void vk_frame_end(const char *shot_path) {
     VkResult r = vkQueuePresentKHR(g_vk.queue, &pi);
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR) recreate_swapchain();
     else if (r == VK_ERROR_SURFACE_LOST_KHR) recover_lost_surface();
+    // A successful queue operation is not proof of physical scanout. Lifecycle callbacks
+    // independently invalidate the target; this watchdog only measures successful presents.
+    if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) {
+        static unsigned presented;
+        display_alive();
+        if (++presented % 120 == 0) LOG("[vk] present accepted count=%u result=%d\n", presented, r);
+    }
     cur_frame.ok = false;
     if (effective_shot) {
         vk_wait_seq(seq);
