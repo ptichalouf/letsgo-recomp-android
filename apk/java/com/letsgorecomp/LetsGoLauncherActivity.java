@@ -37,6 +37,7 @@ public class LetsGoLauncherActivity extends Activity {
     private boolean settingsShowing;
     private int activeSection;
     private int layoutGeneration;
+    private ModsPanel modsPanel;    // Settings > Mods (ModsPanel.java)
 
     /** The user-picked game folder, or null if not set (GameDir: kept across app updates). */
     public static String gameDir(android.content.Context ctx) {
@@ -499,6 +500,7 @@ public class LetsGoLauncherActivity extends Activity {
             section("driver", Txt.t("gpu", "Driver GPU (Turnip)")),
             section("image", Txt.t("sec_image", "Imagem")),
             section("game", Txt.t("sec_game", "Jogo")),
+            section("mods", Txt.t("mods_title", "Mods")),
             section("controls", Txt.t("sec_controls", "Controles")),
             section("journal", Txt.t("log_title", "Log do app"))
         };
@@ -518,10 +520,12 @@ public class LetsGoLauncherActivity extends Activity {
         move(sections[1], autoDrv, importDrv);
         move(sections[2], resLabel, resSpinner, customRes, fmtLabel, fmtSpinner, fps60, smaa);
         move(sections[3], langLabel, langSpinner, wild);
-        move(sections[4], touch, touchFull, gyroAim);
+        modsPanel = new ModsPanel(this);
+        modsPanel.build(sections[4]);
+        move(sections[5], touch, touchFull, gyroAim);
         Button settingsLog = navigation(log.getText(), () -> log.performClick());
-        sections[5].addView(settingsLog, lp(-1, -2));
-        move(sections[5], hint);
+        sections[6].addView(settingsLog, lp(-1, -2));
+        move(sections[6], hint);
 
         homeScroll = scrolling(root);
         // Direct links keep every setting within three taps, including compact screens.
@@ -633,6 +637,7 @@ public class LetsGoLauncherActivity extends Activity {
     private void showSettings(int index, int offset) {
         settingsShowing = true;
         folderStatus.setText(status.getText());
+        if (modsPanel != null) modsPanel.refresh();
         homeScroll.setVisibility(android.view.View.GONE);
         settingsPage.setVisibility(android.view.View.VISIBLE);
         restorePosition(index, offset);
@@ -1114,6 +1119,7 @@ public class LetsGoLauncherActivity extends Activity {
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
+        if (modsPanel != null && modsPanel.onActivityResult(req, res, data)) return;
         if (req == REQ_GAME_DIR && res == RESULT_OK && data != null
                 && data.getData() != null) {
             android.net.Uri uri = data.getData();

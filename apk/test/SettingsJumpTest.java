@@ -15,7 +15,7 @@ public class SettingsJumpTest {
         String source = Files.readString(Path.of(args.length == 0
                 ? "apk/java/com/letsgorecomp/LetsGoLauncherActivity.java" : args[0]));
         // This first check fails on main 4494622: it has only one long, untitled column.
-        for (String section : new String[]{"folder", "driver", "image", "game", "controls", "journal"}) {
+        for (String section : new String[]{"folder", "driver", "image", "game", "mods", "controls", "journal"}) {
             check("visible titled section " + section, source.contains("section(\"" + section + "\", Txt.t("));
         }
         check("settings separated from home", source.contains("showSettings(0)") && source.contains("showHome()"));
@@ -30,7 +30,7 @@ public class SettingsJumpTest {
         check("back returns home", source.contains("onBackPressed()") && source.contains("settingsShowing"));
         check("restores screen after recreation", source.contains("onSaveInstanceState(")
                 && source.contains("getBoolean(\"settingsShowing\""));
-        check("all six group containers in scroll", source.contains("for (LinearLayout section : sections) settingsColumn.addView(section"));
+        check("all seven group containers in scroll", source.contains("for (LinearLayout section : sections) settingsColumn.addView(section"));
         check("old hidden shortcut removed", !source.contains("SettingsJump.show("));
         check("rail scrolls for large fonts", source.contains("railScroll = scrolling(rail)")
                 && source.contains("settingsBody.addView(railScroll"));
@@ -38,7 +38,9 @@ public class SettingsJumpTest {
                 && !source.contains("(idx + 1) % all.size()"));
         check("existing controls assigned to sections", source.contains("move(sections[2], resLabel, resSpinner")
                 && source.contains("move(sections[3], langLabel, langSpinner, wild)")
-                && source.contains("move(sections[4], touch, touchFull, gyroAim)"));
+                && source.contains("move(sections[5], touch, touchFull, gyroAim)"));
+        check("mods section filled by ModsPanel", source.contains("modsPanel.build(sections[4])")
+                && source.contains("modsPanel.onActivityResult(req, res, data)"));
         // Reflective calls let the same test compile against the original helper: red is an assertion,
         // not a compilation error for methods which do not exist yet.
         check("wide at both exact thresholds", wide(600, 480));

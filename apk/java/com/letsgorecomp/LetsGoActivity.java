@@ -126,6 +126,7 @@ public class LetsGoActivity extends SDLActivity {
         // Mods live in the app's own storage, not in the player's game folder (runtime/mods.c mods_dir; ModUnpack).
         try {
             android.system.Os.setenv("LARECOMP_MODS_DIR", ModUnpack.dir(this).getAbsolutePath(), true);
+            android.system.Os.setenv("LARECOMP_MOD", ModsPanel.active(this), true);  // ("" = no mod; Settings > Mods)
         } catch (Exception e) {
             android.util.Log.w("lasrecomp", "[mods] LARECOMP_MODS_DIR: " + e);
         }

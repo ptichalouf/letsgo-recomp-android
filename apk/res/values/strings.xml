@@ -187,4 +187,119 @@
     <string name="sec_image">"Imagem"</string>
     <string name="sec_game">"Jogo"</string>
     <string name="sec_controls">"Controles"</string>
+    <!-- Settings > Mods (ModsPanel.java): the 57 keys written for work/perso/letsgo-recomp-android/mods/maquettes -->
+    <!-- titre de l'écran ; rang du rail des Réglages qui y mène -->
+    <string name="mods_title">"Mods"</string>
+    <!-- sous le titre : nombre, place occupée, place libre -->
+    <string name="mods_summary">"%1$d instalados · %2$s · %3$s livres no aparelho"</string>
+    <!-- titre de la liste -->
+    <string name="mods_installed">"Instalados"</string>
+    <!-- liste vide -->
+    <string name="mods_empty">"Nenhum mod instalado."</string>
+    <!-- aide sous « Ajouter » -->
+    <string name="mods_what">"Um mod troca imagens, modelos ou textos do jogo, sem mexer na sua gravação."</string>
+    <!-- action principale (variante « fichier ») -->
+    <string name="mods_add">"Adicionar um mod"</string>
+    <!-- action secondaire (variantes « lien » et « catalogue ») -->
+    <string name="mods_add_file">"Adicionar um arquivo baixado"</string>
+    <!-- action secondaire : dossier déjà décompressé -->
+    <string name="mods_add_folder">"De uma pasta"</string>
+    <!-- aide sous les boutons d'ajout -->
+    <string name="mods_formats">"Arquivo .zip, .rar ou .7z baixado, ou pasta já descompactada."</string>
+    <!-- fichier récent trouvé dans Download/ (lecture du dossier, rien n'est ouvert) -->
+    <string name="mods_recent">"Baixado há pouco"</string>
+    <!-- lien discret vers gamebanana.com/games/6773 -->
+    <string name="mods_gb_link">"Página do jogo no GameBanana"</string>
+    <!-- action principale (variante « lien ») -->
+    <string name="mods_gb_browse">"Procurar mods no GameBanana"</string>
+    <!-- aide de la variante « lien » -->
+    <string name="mods_gb_then">"Baixe o arquivo e volte aqui para adicioná-lo."</string>
+    <!-- action principale (variante « catalogue », écran de la découverte) -->
+    <string name="mods_browse">"Explorar mods"</string>
+    <!-- auteur -->
+    <string name="mods_by">"por %1$s"</string>
+    <!-- auteur inconnu (fichier importé sans fiche) -->
+    <string name="mods_by_unknown">"autor não informado"</string>
+    <!-- origine (nom propre, identique) -->
+    <string name="mods_src_gb">"GameBanana"</string>
+    <!-- origine -->
+    <string name="mods_src_file">"arquivo importado"</string>
+    <!-- origine -->
+    <string name="mods_src_folder">"pasta importada"</string>
+    <!-- état, à gauche de l'interrupteur -->
+    <string name="mods_on">"Ativo"</string>
+    <!-- état, à gauche de l'interrupteur -->
+    <string name="mods_off">"Inativo"</string>
+    <!-- confirmation après une bascule -->
+    <string name="mods_next_play">"Vale a partir do próximo Jogar."</string>
+    <!-- sous la liste, si le moteur ne sait en charger qu'un -->
+    <string name="mods_one_at_a_time">"Um mod ativo por vez: ativar um desativa o outro."</string>
+    <!-- toast, mode un seul mod -->
+    <string name="mods_switched_off">"%1$s foi desativado."</string>
+    <!-- bouton ⋯ d'un mod (accessibilité) ; titre de la feuille -->
+    <string name="mods_details">"Detalhes"</string>
+    <!-- feuille de détails / d'installation -->
+    <string name="mods_file">"Arquivo"</string>
+    <!-- feuille de détails / d'installation -->
+    <string name="mods_space">"Espaço no aparelho"</string>
+    <!-- feuille de détails / d'installation -->
+    <string name="mods_changes">"O que muda"</string>
+    <!-- valeur de « Ce qu'il change » -->
+    <string name="mods_changes_n">"%1$d arquivos do jogo substituídos, %2$d acrescentados"</string>
+    <!-- mod de traduction (mod_language du moteur) -->
+    <string name="mods_lang_changes">"Troca os textos em: %1$s"</string>
+    <!-- feuille de détails, si l'origine est connue -->
+    <string name="mods_open_gb">"Ver no GameBanana"</string>
+    <!-- feuille de détails -->
+    <string name="mods_remove">"Remover"</string>
+    <!-- dialogue de confirmation -->
+    <string name="mods_remove_title">"Remover %1$s?"</string>
+    <!-- dialogue de confirmation -->
+    <string name="mods_remove_body">"Os arquivos do mod são apagados do aparelho (%1$s liberados). Sua gravação não é alterada. Para usá-lo de novo, adicione o arquivo outra vez."</string>
+    <!-- toast -->
+    <string name="mods_removed">"%1$s removido."</string>
+    <!-- analyse (table des matières seulement) -->
+    <string name="mods_reading">"Lendo o arquivo…"</string>
+    <!-- titre de la feuille d'installation -->
+    <string name="mods_ready">"Pronto para instalar"</string>
+    <!-- valeur de « Place sur l'appareil » -->
+    <string name="mods_need_space">"Precisa de %1$s (restam %2$s)"</string>
+    <!-- action principale de la feuille -->
+    <string name="mods_install">"Instalar"</string>
+    <!-- rang d'un mod en cours de copie -->
+    <string name="mods_installing">"Instalando… %1$d%%"</string>
+    <!-- toast de fin d'installation -->
+    <string name="mods_installed_on">"%1$s instalado e ativo."</string>
+    <!-- feuille d'installation -->
+    <string name="mods_variants">"Este mod tem %1$d versões"</string>
+    <!-- sous le titre des versions -->
+    <string name="mods_variant_pick">"Escolha uma. Para trocar depois, adicione o arquivo de novo."</string>
+    <!-- badge d'un mod installé -->
+    <string name="mods_variant_badge">"versão: %1$s"</string>
+    <!-- feuille d'installation, dossier par jeu -->
+    <string name="mods_eevee_picked">"O arquivo traz uma versão para cada jogo: a de Let\'s Go, Eevee! foi escolhida."</string>
+    <!-- avertissement, feuille d'installation -->
+    <string name="mods_code_part">"Uma parte deste mod modifica o programa do jogo: essa parte não pode ser aplicada aqui. O resto (imagens, modelos, textos) será."</string>
+    <!-- badge d'un mod installé -->
+    <string name="mods_code_badge">"parte do programa ignorada"</string>
+    <!-- titre du groupe des échecs -->
+    <string name="mods_failed">"Não instalados"</string>
+    <!-- échec réparable (place, fichier illisible) -->
+    <string name="mods_retry">"Tentar de novo"</string>
+    <!-- retire l'échec de la liste (aucun fichier touché) -->
+    <string name="mods_dismiss">"Dispensar"</string>
+    <!-- erreur 1 -->
+    <string name="mods_fail_unreadable">"Arquivo ilegível: download incompleto, arquivo danificado ou protegido por senha. Baixe de novo."</string>
+    <!-- erreur 2 (autre jeu ou autre version, noms passés en données) -->
+    <string name="mods_fail_other_game">"Este mod é para %1$s; o seu jogo é %2$s."</string>
+    <!-- erreur 3 -->
+    <string name="mods_fail_space">"Espaço insuficiente: precisa de %1$s, restam %2$s. Libere espaço e tente de novo."</string>
+    <!-- erreur 4 -->
+    <string name="mods_fail_not_mod">"Nada aqui substitui arquivos do jogo (contém: %1$s). Talvez seja uma gravação ou um guia."</string>
+    <!-- erreur 5 -->
+    <string name="mods_fail_code_only">"Este mod só modifica o programa do jogo, e isso este port não sabe aplicar."</string>
+    <!-- échec propre au moteur : seulement si .rar/.7z ne savent pas être ouverts (java.util.zip ne lit que .zip) -->
+    <string name="mods_fail_format">"O formato .%1$s ainda não é suportado: descompacte o arquivo e adicione a pasta."</string>
+    <!-- accueil, ligne d'état sous « Jouer » (proposée, non maquettée) -->
+    <string name="mods_play_with">"Com %1$d mods ativos"</string>
 </resources>
