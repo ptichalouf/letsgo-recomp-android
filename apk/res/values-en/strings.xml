@@ -184,4 +184,7 @@
     <string name="fmt_169">"Game 16:9 (black bars)"</string>
     <string name="fmt_43">"4:3 (experimental: stretched interface)"</string>
     <string name="fmt_fill">"Fill the screen (experimental: stretched interface)"</string>
+    <string name="sec_image">"Image"</string>
+    <string name="sec_game">"Game"</string>
+    <string name="sec_controls">"Controls"</string>
 </resources>

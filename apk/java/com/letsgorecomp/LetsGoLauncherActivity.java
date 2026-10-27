@@ -28,6 +28,15 @@ public class LetsGoLauncherActivity extends Activity {
     private TextView drvStatus;
     private GpuInfo gpu;            // detected in the background at start
     private boolean driverBusy;     // a check or a download is running
+    private LinearLayout screen, settingsPage, settingsBody, settingsColumn, rail;
+    private android.widget.ScrollView homeScroll, settingsScroll, railScroll;
+    private LinearLayout[] sections;
+    private Button[] railButtons;
+    private TextView folderStatus;
+    private android.widget.RadioGroup driverChoices;
+    private boolean settingsShowing;
+    private int activeSection;
+    private int layoutGeneration;
 
     /** The user-picked game folder, or null if not set (GameDir: kept across app updates). */
     public static String gameDir(android.content.Context ctx) {
@@ -277,24 +286,6 @@ public class LetsGoLauncherActivity extends Activity {
         });
         root.addView(useSystem, lp(-1, -2));
 
-        // Tap the status to cycle through the installed drivers (simple selection UI).
-        drvStatus.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override public void onClick(android.view.View v) {
-                java.util.List<GpuDrivers.Driver> all = GpuDrivers.list(LetsGoLauncherActivity.this);
-                if (all.isEmpty()) return;
-                GpuDrivers.Driver sel = GpuDrivers.selected(LetsGoLauncherActivity.this);
-                int idx = -1;
-                for (int i = 0; i < all.size(); i++) {
-                    if (sel != null && all.get(i).slug.equals(sel.slug)) { idx = i; break; }
-                }
-                GpuDrivers.Driver next = all.get((idx + 1) % all.size());
-                GpuDrivers.select(LetsGoLauncherActivity.this, next);
-                refreshDrivers();
-                android.widget.Toast.makeText(LetsGoLauncherActivity.this,
-                    Txt.t("driver_set", "Driver selecionado: ") + next.name, android.widget.Toast.LENGTH_SHORT).show();
-            }
-        });
-
         // ---- Game settings (written to larecomp.ini in the game folder) ----
         final TextView cfgTitle = new TextView(this);
         cfgTitle.setText(Txt.t("cfg", "Configurações"));
@@ -502,62 +493,202 @@ public class LetsGoLauncherActivity extends Activity {
         hint.setPadding(0, dp(24), 0, 0);
         root.addView(hint, lp(-1, -2));
 
-        final android.widget.ScrollView scroll = new android.widget.ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setScrollbarFadingEnabled(false);  // the scrollbar stays: the page is longer than the screen
-        scroll.addView(root);
-
-        // "Settings ↓" sits at the bottom while the settings are still below the fold (SettingsJump); a tap scrolls
-        // to them. Stand-in until the launcher's redesign; nothing else on the page moves.
-        final Button jump = new Button(this);
-        jump.setText(Txt.t("cfg_jump", "Configurações ↓"));
-        jump.setAllCaps(false);
-        jump.setTextSize(16);
-        jump.setTextColor(Color.WHITE);
-        android.graphics.drawable.GradientDrawable jumpBg = new android.graphics.drawable.GradientDrawable();
-        jumpBg.setColor(Color.rgb(46, 110, 200));
-        jumpBg.setCornerRadius(dp(24));
-        jump.setBackground(jumpBg);
-        jump.setMinHeight(dp(48));
-        jump.setMinimumHeight(dp(48));
-        jump.setPadding(dp(24), 0, dp(24), 0);
-        jump.setElevation(dp(6));
-        jump.setOnClickListener(new android.view.View.OnClickListener() {
-            @Override public void onClick(android.view.View v) {
-                scroll.smoothScrollTo(0, SettingsJump.target(cfgTitle.getTop(), dp(8)));
-            }
-        });
-        // a bar under the page, not over it: the shortcut never hides a button. Its height is judged against the
-        // whole screen (frame), which doesn't change when the bar comes and goes, so it cannot flicker.
-        final LinearLayout bar = new LinearLayout(this);
-        bar.setGravity(Gravity.CENTER);
-        bar.setBackgroundColor(Color.rgb(20, 22, 28));
-        bar.setPadding(0, dp(8), 0, dp(8));
-        bar.addView(jump, new LinearLayout.LayoutParams(-2, -2));
-        bar.setVisibility(android.view.View.GONE);
-        final LinearLayout frame = new LinearLayout(this);
-        frame.setOrientation(LinearLayout.VERTICAL);
-        frame.setBackgroundColor(Color.rgb(20, 22, 28));
-        frame.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        frame.addView(bar, new LinearLayout.LayoutParams(-1, -2));
-        setContentView(frame);
-
-        final Runnable updateJump = new Runnable() {
-            @Override public void run() {
-                boolean show = SettingsJump.show(cfgTitle.getTop(), scroll.getScrollY(), frame.getHeight(),
-                        scroll.canScrollVertically(1));
-                int vis = show ? android.view.View.VISIBLE : android.view.View.GONE;
-                if (bar.getVisibility() != vis) bar.setVisibility(vis);
-            }
+        // Reuse the existing controls and callbacks; settings never collapse or duplicate state.
+        sections = new LinearLayout[]{
+            section("folder", Txt.t("folder", "Pasta: ").trim()),
+            section("driver", Txt.t("gpu", "Driver GPU (Turnip)")),
+            section("image", Txt.t("sec_image", "Imagem")),
+            section("game", Txt.t("sec_game", "Jogo")),
+            section("controls", Txt.t("sec_controls", "Controles")),
+            section("journal", Txt.t("log_title", "Log do app"))
         };
-        scroll.setOnScrollChangeListener(new android.view.View.OnScrollChangeListener() {
-            @Override public void onScrollChange(android.view.View v, int x, int y, int ox, int oy) { updateJump.run(); }
-        });
-        // rotation, fold/unfold (the activity is kept: configChanges), status or driver text changing height
-        scroll.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
-            @Override public void onGlobalLayout() { updateJump.run(); }
-        });
+        folderStatus = new TextView(this);
+        folderStatus.setTextColor(Color.WHITE);
+        sections[0].addView(folderStatus, lp(-1, -2));
+        Button settingsPick = navigation(pick.getText(), () -> pick.performClick());
+        sections[0].addView(settingsPick, lp(-1, -2));
+        move(sections[0], forget);
+        root.removeView(drvTitle);
+        root.removeView(cfgTitle);
+        move(sections[1], drvDevice, drvStatus);
+        root.removeView(useSystem); // replaced by a directly selectable driver list below
+        driverChoices = new android.widget.RadioGroup(this);
+        sections[1].addView(driverChoices, lp(-1, -2));
+        refreshDrivers();
+        move(sections[1], autoDrv, importDrv);
+        move(sections[2], resLabel, resSpinner, customRes, fmtLabel, fmtSpinner, fps60, smaa);
+        move(sections[3], langLabel, langSpinner, wild);
+        move(sections[4], touch, touchFull, gyroAim);
+        Button settingsLog = navigation(log.getText(), () -> log.performClick());
+        sections[5].addView(settingsLog, lp(-1, -2));
+        move(sections[5], hint);
+
+        homeScroll = scrolling(root);
+        // Direct links keep every setting within three taps, including compact screens.
+        root.addView(navigation(Txt.t("cfg", "Configurações"), () -> showSettings(0)), 2);
+        for (int i = 1; i < sections.length - 1; i++) {
+            final int index = i;
+            root.addView(navigation(((TextView) sections[i].getChildAt(0)).getText(),
+                    () -> showSettings(index)), lp(-1, -2));
+        }
+        settingsPage = new LinearLayout(this);
+        settingsPage.setOrientation(LinearLayout.VERTICAL);
+        Button back = navigation("‹ " + Txt.t("cfg", "Configurações"), () -> showHome());
+        settingsPage.addView(back, lp(-1, -2));
+        settingsBody = new LinearLayout(this);
+        settingsPage.addView(settingsBody, new LinearLayout.LayoutParams(-1, 0, 1f));
+        settingsColumn = new LinearLayout(this);
+        settingsColumn.setOrientation(LinearLayout.VERTICAL);
+        settingsColumn.setPadding(dp(16), 0, dp(16), dp(48));
+        for (LinearLayout section : sections) settingsColumn.addView(section, lp(-1, -2));
+        settingsScroll = scrolling(settingsColumn);
+        rail = new LinearLayout(this);
+        rail.setOrientation(LinearLayout.VERTICAL);
+        railButtons = new Button[sections.length];
+        for (int i = 0; i < sections.length; i++) {
+            final int index = i;
+            railButtons[i] = navigation(((TextView) sections[i].getChildAt(0)).getText(),
+                    () -> showSettings(index));
+            android.content.res.ColorStateList colors = new android.content.res.ColorStateList(
+                    new int[][]{new int[]{android.R.attr.state_selected}, new int[]{}},
+                    new int[]{0xfff0b872, 0xffeceef2});
+            railButtons[i].setTextColor(colors);
+            android.graphics.drawable.GradientDrawable selectedBg = new android.graphics.drawable.GradientDrawable();
+            selectedBg.setColor(0x24e8a95b);
+            selectedBg.setCornerRadius(dp(28));
+            android.graphics.drawable.StateListDrawable background = new android.graphics.drawable.StateListDrawable();
+            background.addState(new int[]{android.R.attr.state_selected}, selectedBg);
+            background.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+            railButtons[i].setBackground(background);
+            rail.addView(railButtons[i], lp(-1, -2));
+        }
+        railScroll = scrolling(rail); // large fonts must not clip the sixth navigation item
+        settingsScroll.setOnScrollChangeListener((v, x, y, ox, oy) -> updateRail());
+        settingsScroll.getViewTreeObserver().addOnGlobalLayoutListener(() -> updateRail());
+        screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
+        screen.setBackgroundColor(Color.rgb(20, 22, 28));
+        screen.addView(homeScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        screen.addView(settingsPage, new LinearLayout.LayoutParams(-1, 0, 1f));
+        setContentView(screen);
+        layoutSettings(0, 0);
+        showHome();
+        if (b != null && b.getBoolean("settingsShowing", false)) {
+            showSettings(b.getInt("activeSection", 0), b.getInt("sectionOffset", 0));
+        }
         refreshStatus();
+    }
+
+    private LinearLayout section(String tag, String title) {
+        LinearLayout group = new LinearLayout(this);
+        group.setTag(tag);
+        group.setOrientation(LinearLayout.VERTICAL);
+        group.setPadding(0, dp(24), 0, dp(8));
+        TextView heading = new TextView(this);
+        heading.setText(title);
+        heading.setTextSize(18);
+        heading.setTextColor(Color.WHITE);
+        if (android.os.Build.VERSION.SDK_INT >= 28) heading.setAccessibilityHeading(true);
+        group.addView(heading, lp(-1, -2));
+        return group;
+    }
+
+    private void move(LinearLayout group, android.view.View... views) {
+        for (android.view.View view : views) {
+            ((ViewGroup) view.getParent()).removeView(view);
+            group.addView(view, lp(-1, -2));
+        }
+    }
+
+    private Button navigation(CharSequence title, Runnable action) {
+        Button button = new Button(this);
+        button.setText(title);
+        button.setAllCaps(false);
+        button.setMinHeight(dp(56));
+        button.setOnClickListener(v -> action.run());
+        return button;
+    }
+
+    private android.widget.ScrollView scrolling(android.view.View content) {
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(true);
+        scroll.setScrollbarFadingEnabled(false);
+        scroll.setScrollBarStyle(android.view.View.SCROLLBARS_INSIDE_INSET);
+        scroll.setVerticalFadingEdgeEnabled(true);
+        scroll.setFadingEdgeLength(dp(48));
+        scroll.addView(content);
+        return scroll;
+    }
+
+    private void showHome() {
+        settingsShowing = false;
+        layoutGeneration++;
+        settingsPage.setVisibility(android.view.View.GONE);
+        homeScroll.setVisibility(android.view.View.VISIBLE);
+    }
+
+    private void showSettings(int index) { showSettings(index, 0); }
+
+    private void showSettings(int index, int offset) {
+        settingsShowing = true;
+        folderStatus.setText(status.getText());
+        homeScroll.setVisibility(android.view.View.GONE);
+        settingsPage.setVisibility(android.view.View.VISIBLE);
+        restorePosition(index, offset);
+    }
+
+    private void restorePosition(int index, int offset) {
+        final int selected = Math.max(0, Math.min(sections.length - 1, index));
+        final int generation = ++layoutGeneration;
+        settingsScroll.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() {
+                settingsScroll.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                if (generation != layoutGeneration || !settingsShowing) return;
+                settingsScroll.scrollTo(0, SettingsJump.target(sections[selected].getTop() + offset, 0));
+                updateRail();
+            }
+        });
+        settingsScroll.requestLayout();
+    }
+
+    private void updateRail() {
+        if (!settingsShowing || sections[0].getHeight() == 0) return;
+        int[] tops = new int[sections.length];
+        for (int i = 0; i < tops.length; i++) tops[i] = sections[i].getTop();
+        activeSection = SettingsJump.active(tops, settingsScroll.getScrollY(), settingsScroll.canScrollVertically(1));
+        for (int i = 0; i < railButtons.length; i++) {
+            railButtons[i].setSelected(i == activeSection);
+        }
+
+    }
+
+    private void layoutSettings(int section, int offset) {
+        android.content.res.Configuration c = getResources().getConfiguration();
+        boolean wide = SettingsJump.wide(c.screenWidthDp, c.screenHeightDp);
+        settingsBody.removeAllViews();
+        if (wide) settingsBody.addView(railScroll, new LinearLayout.LayoutParams(dp(248), -1));
+        settingsBody.addView(settingsScroll, new LinearLayout.LayoutParams(0, -1, 1f));
+        restorePosition(section, offset);
+    }
+
+    @Override public void onConfigurationChanged(android.content.res.Configuration c) {
+        super.onConfigurationChanged(c);
+        if (settingsScroll == null) return;
+        int offset = settingsScroll.getScrollY() - sections[activeSection].getTop();
+        layoutSettings(activeSection, offset);
+    }
+
+    @Override protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        out.putBoolean("settingsShowing", settingsShowing);
+        out.putInt("activeSection", activeSection);
+        out.putInt("sectionOffset", settingsScroll.getScrollY() - sections[activeSection].getTop());
+    }
+
+    @Override public void onBackPressed() {
+        if (settingsShowing) showHome();
+        else super.onBackPressed();
     }
 
 
@@ -685,8 +816,26 @@ public class LetsGoLauncherActivity extends Activity {
             }
         }
         drvStatus.setText(sb.toString());
+        if (driverChoices != null) {
+            driverChoices.removeAllViews();
+            driverChoice(Txt.t("system_driver", "driver do sistema"), null, sel == null);
+            for (GpuDrivers.Driver d : all) driverChoice(label(d, all), d, sel != null && d.slug.equals(sel.slug));
+        }
         android.util.Log.i("lasrecomp", "[gpu] launcher: selected=" + (sel == null ? "system" : sel.slug)
             + " last_start=" + last + " packages=" + all.size());
+    }
+
+    private void driverChoice(String title, GpuDrivers.Driver driver, boolean selected) {
+        android.widget.RadioButton radio = new android.widget.RadioButton(this);
+        radio.setText(title);
+        radio.setTextColor(Color.WHITE);
+        radio.setMinHeight(dp(48));
+        radio.setChecked(selected);
+        radio.setOnClickListener(v -> {
+            GpuDrivers.select(this, driver);
+            refreshDrivers();
+        });
+        driverChoices.addView(radio, lp(-1, -2));
     }
 
     /** A driver's name, with its version, and its folder when another package has the same name and version. */
@@ -888,6 +1037,7 @@ public class LetsGoLauncherActivity extends Activity {
         }
         if (!st.gameLib) text += Txt.t("no_gamelib", "\nEste APK não tem o código do jogo (liblasgame.so).");
         status.setText(text);
+        if (folderStatus != null) folderStatus.setText(text);
         if (play != null) {
             play.setEnabled(st.ready);
             play.setAlpha(st.ready ? 1f : 0.4f);

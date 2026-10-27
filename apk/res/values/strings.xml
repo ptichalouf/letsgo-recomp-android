@@ -184,4 +184,7 @@
     <string name="fmt_169">"16:9 do jogo (faixas pretas)"</string>
     <string name="fmt_43">"4:3 (experimental: interface esticada)"</string>
     <string name="fmt_fill">"Preencher a tela (experimental: interface esticada)"</string>
+    <string name="sec_image">"Imagem"</string>
+    <string name="sec_game">"Jogo"</string>
+    <string name="sec_controls">"Controles"</string>
 </resources>
