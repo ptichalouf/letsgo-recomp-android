@@ -68,40 +68,81 @@ int mods_list(char names[][128], int max) {
         if (is_dir(p) && find_romfs(p, 4, r, sizeof r)) snprintf(names[n++], 128, "%s", e->d_name);
     }
     closedir(d);
+    qsort(names, n, 128, (int (*)(const void *, const void *))strcmp);  // (readdir order is the file system's)
     return n;
 }
 
-static const char *romfs_of(const char *name) {
-    static char cached_name[128], dir[1024];
-    static bool ok;
-    if (!name || !*name) return NULL;
-    if (strcmp(name, cached_name)) {
-        snprintf(cached_name, sizeof cached_name, "%s", name);
-        char p[1024];
-        snprintf(p, sizeof p, "%s/%s", mods_dir(), name);
-        ok = find_romfs(p, 4, dir, sizeof dir);
-        if (ok) LOG("[mods] %s: %s\n", name, dir);
-        else LOG("[mods] %s: no romfs/ folder found under %s\n", name, p);
-    }
-    return ok ? dir : NULL;
-}
+// ------------------------------------------------------------------ the active mods, in the player's order
+// LARECOMP_MODS: the active mods' folder names separated by '|', HIGHEST PRIORITY FIRST (Android: the launcher's
+// ordered list, Settings > Mods). A RomFS file several of them have is served from the first one; the copies of the
+// others are hidden, and each such conflict is logged. Unset: LARECOMP_MOD (one mod; empty = none), else
+// larecomp.ini's mod. The order is the list's, never the folders' (readdir order depends on the file system).
+typedef struct { char name[128], root[1024]; } ActiveMod;
+static ActiveMod g_act[MODS_MAX];
+static int g_nact = -1;
+static char g_act_key[MODS_MAX * 130];
 
-// The active mod: LARECOMP_MOD when set (Android: the launcher's choice, so the player's larecomp.ini is never
-// rewritten; empty = none), else larecomp.ini's mod.
-static const char *active_mod(void) {
-    const char *e = getenv("LARECOMP_MOD");
+static const char *active_list(void) {
+    const char *e = getenv("LARECOMP_MODS");
+    if (e) return e;
+    e = getenv("LARECOMP_MOD");
     return e ? e : g_settings.mod;
 }
 
-const char *mod_romfs_dir(void) { return romfs_of(active_mod()); }
-
-bool mod_romfs_override(const char *path, char *out, size_t cap) {
-    const char *root = mod_romfs_dir();
-    if (!root) return false;
-    struct stat sb;
-    snprintf(out, cap, "%s/%s", root, path);
-    return !stat(out, &sb) && S_ISREG(sb.st_mode);
+static int active_mods(const ActiveMod **out) {
+    const char *list = active_list();
+    if (g_nact < 0 || strcmp(list, g_act_key)) {
+        snprintf(g_act_key, sizeof g_act_key, "%s", list);
+        g_nact = 0;
+        for (const char *s = list; *s && g_nact < MODS_MAX;) {
+            const char *bar = strchr(s, '|');
+            size_t len = bar ? (size_t)(bar - s) : strlen(s);
+            ActiveMod *m = &g_act[g_nact];
+            if (len && len < sizeof m->name) {
+                memcpy(m->name, s, len);
+                m->name[len] = 0;
+                bool dup = false;
+                for (int i = 0; i < g_nact; i++) dup |= !strcmp(g_act[i].name, m->name);
+                char p[1200];
+                snprintf(p, sizeof p, "%s/%s", mods_dir(), m->name);
+                if (dup) LOG("[mods] %s: listed twice, its first place counts\n", m->name);
+                else if (m->name[0] == '.' || strchr(m->name, '/') || strchr(m->name, '\\')) LOG("[mods] '%s': not a mods/ folder name, skipped\n", m->name);
+                else if (find_romfs(p, 4, m->root, sizeof m->root)) { LOG("[mods] %d. %s: %s\n", g_nact + 1, m->name, m->root); g_nact++; }
+                else LOG("[mods] %s: no romfs/ folder found under %s\n", m->name, p);
+            }
+            if (!bar) break;
+            s = bar + 1;
+        }
+        if (g_nact > 1) LOG("[mods] %d mods on; a file several have is served from the one listed first\n", g_nact);
+    }
+    *out = g_act;
+    return g_nact;
 }
+
+int mods_active_count(void) { const ActiveMod *m; return active_mods(&m); }
+const char *mods_active_name(int i) { const ActiveMod *m; return i >= 0 && i < active_mods(&m) ? m[i].name : NULL; }
+const char *mods_active_romfs(int i) { const ActiveMod *m; return i >= 0 && i < active_mods(&m) ? m[i].root : NULL; }
+
+int mod_romfs_find(const char *path, char *out, size_t cap, bool report) {
+    const ActiveMod *m;
+    int n = active_mods(&m), won = -1;
+    char p[1200];
+    struct stat sb;
+    for (int i = 0; i < n; i++) {
+        snprintf(p, sizeof p, "%s/%s", m[i].root, path);
+        if (stat(p, &sb) || !S_ISREG(sb.st_mode)) continue;
+        if (won < 0) {
+            won = i;
+            snprintf(out, cap, "%s", p);
+            if (!report) break;
+        } else {
+            LOG("[mods] conflict: %s is in '%s' (#%d, served) and '%s' (#%d, hidden)\n", path, m[won].name, won + 1, m[i].name, i + 1);
+        }
+    }
+    return won;
+}
+
+bool mod_romfs_override(const char *path, char *out, size_t cap) { return mod_romfs_find(path, out, cap, false) >= 0; }
 
 // bin/message/<folder> -> language code
 static const struct { const char *folder, *code; } k_msg_langs[] = {
@@ -109,9 +150,7 @@ static const struct { const char *folder, *code; } k_msg_langs[] = {
     {"JPN", "ja"},        {"Korean", "ko"},   {"Simp_Chinese", "zh-CN"}, {"Trad_Chinese", "zh-TW"},
 };
 
-const char *mod_language(const char *name) {
-    const char *root = romfs_of(name);
-    if (!root) return NULL;
+static const char *root_language(const char *root) {
     const char *found = NULL;
     char p[1100];
     for (size_t i = 0; i < sizeof k_msg_langs / sizeof k_msg_langs[0]; i++) {
@@ -123,9 +162,20 @@ const char *mod_language(const char *name) {
     return found;
 }
 
+const char *mod_language(const char *name) {
+    if (!name || !*name) return NULL;
+    char p[1200], root[1024];
+    snprintf(p, sizeof p, "%s/%s", mods_dir(), name);
+    return find_romfs(p, 4, root, sizeof root) ? root_language(root) : NULL;
+}
+
 const char *game_language(void) {
-    const char *m = mod_language(active_mod());
-    if (m) return m;
+    const ActiveMod *m;
+    int n = active_mods(&m);
+    for (int i = 0; i < n; i++) {  // the first mod (in the player's order) that is one language's texts decides
+        const char *l = root_language(m[i].root);
+        if (l) return l;
+    }
     // Fan translations REPLACE the English files (keeping the folder name "English").
     // The game must request en-US to load the translated PT-BR text.
     return g_settings.game_lang[0] ? g_settings.game_lang : "en-US";

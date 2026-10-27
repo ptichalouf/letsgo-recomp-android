@@ -20,7 +20,9 @@ const char *g_save_dir = "save";
 static int romfs_fd = -1;
 
 // ------------------------------------------------------------------ RomFS file index (offset -> path)
-typedef struct { uint64_t start, size; char *path; int fd; const uint8_t *mem; } Overlay;
+// mod: the index (mods_active_*) of the mod a file comes from, -1 for an in-memory table; rel: its RomFS path; seen:
+// its first read was logged ("[mods] served").
+typedef struct { uint64_t start, size; char *path; int fd; const uint8_t *mem; int mod; const char *rel; bool seen; } Overlay;
 // in-image patches (copies of RomFS tables with changes): header, dir meta, file hash, file meta
 typedef struct { uint64_t off, size; uint8_t *data; } Patch;
 static Patch patches[8];
@@ -87,7 +89,7 @@ static uint32_t romfs_hash(uint32_t parent, const char *name, uint32_t len) {
 
 static int path_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
 
-typedef struct { char rel[1024]; char host[1200]; uint64_t size; } NewFile;
+typedef struct { char rel[1024]; char host[1200]; uint64_t size; int mod; } NewFile;
 
 static void walk_new(const char *root, const char *rel, char **known, int nknown, NewFile **out, int *n, int *cap) {
     char dirp[1200];
@@ -135,17 +137,34 @@ static int64_t dir_lookup(const uint8_t *dm, uint64_t dsz, const char *path) {
 }
 
 static void add_new_files(int fd, const uint64_t *h, const uint8_t *dmeta, uint64_t dsz, uint64_t fsz) {
-    if (!mod_romfs_dir()) return;  // a mod's new files (runtime/mods.h)
-    char root[1100];
-    snprintf(root, sizeof root, "%s", mod_romfs_dir());
+    int nmods = mods_active_count();  // the active mods' new files (runtime/mods.h), in the player's order
+    if (!nmods) return;
     char **known = malloc(sizeof *known * rom_nfiles);
     for (int i = 0; i < rom_nfiles; i++) known[i] = rom_files[i].path;
     qsort(known, rom_nfiles, sizeof *known, path_cmp);
     NewFile *nf = NULL;
     int n = 0, cap = 0;
-    walk_new(root, "", known, rom_nfiles, &nf, &n, &cap);
+    for (int k = 0; k < nmods; k++) {
+        int from = n;
+        walk_new(mods_active_romfs(k), "", known, rom_nfiles, &nf, &n, &cap);
+        for (int j = from; j < n; j++) nf[j].mod = k;
+    }
     free(known);
-    if (!n) return;
+    // a new file several mods add: the copy of the first mod in the list (nf is in list order), the others hidden
+    int kept = 0;
+    for (int j = 0; j < n; j++) {
+        int first = -1;
+        for (int i = 0; i < kept && first < 0; i++) if (!strcmp(nf[i].rel, nf[j].rel)) first = i;
+        if (first >= 0) {
+            LOG("[mods] conflict: %s is in '%s' (#%d, served) and '%s' (#%d, hidden)\n", nf[j].rel,
+                mods_active_name(nf[first].mod), nf[first].mod + 1, mods_active_name(nf[j].mod), nf[j].mod + 1);
+            continue;
+        }
+        if (kept != j) nf[kept] = nf[j];
+        kept++;
+    }
+    n = kept;
+    if (!n) { free(nf); return; }
     rom_files = realloc(rom_files, sizeof(RomFile) * (rom_nfiles + n));
     uint64_t hoff = h[5], hsz = h[6];
     uint8_t *dcopy = malloc(dsz), *hcopy = malloc(hsz), *head = malloc(0x50);
@@ -199,15 +218,15 @@ static void add_new_files(int fd, const uint64_t *h, const uint8_t *dmeta, uint6
         memcpy(hcopy + 4 * bucket, &entry, 4);
         o += 0x20 + ((nl + 3) & ~3u);
         if (ov_n == ov_cap) { ov_cap = ov_cap ? ov_cap * 2 : 256; ov = realloc(ov, sizeof *ov * ov_cap); }
-        ov[ov_n++] = (Overlay){data_at, size, strdup(nf[i].host), -1, NULL};
         rom_files[rom_nfiles++] = (RomFile){data_at, size, strdup(nf[i].rel), entry};
+        ov[ov_n++] = (Overlay){data_at, size, strdup(nf[i].host), -1, NULL, nf[i].mod, rom_files[rom_nfiles - 1].path, false};
         data_at = (data_at + size + 0xF) & ~0xFull;
         added++;
     }
     // the new table goes before the new data (keep the overlay list sorted by start)
     if (ov_n == ov_cap) { ov_cap = ov_cap ? ov_cap * 2 : 256; ov = realloc(ov, sizeof *ov * ov_cap); }
     memmove(ov + (ov_n - added) + 1, ov + (ov_n - added), sizeof *ov * added);
-    ov[ov_n - added] = (Overlay){meta_at, nsz, NULL, -1, meta};
+    ov[ov_n - added] = (Overlay){meta_at, nsz, NULL, -1, meta, -1, NULL, false};
     ov_n++;
     ov_end = data_at;
     uint64_t fmeta_off = meta_at, fmeta_size = o;
@@ -252,7 +271,8 @@ static void rom_index(int fd) {
     // (in a copy) to point them at data appended past the end of the image; reads there go to host files.
     for (int i = 0; i < rom_nfiles; i++) {
         char host[1200];
-        if (!mod_romfs_override(rom_files[i].path, host, sizeof host)) continue;  // (a mod's file: runtime/mods.h)
+        int mod = mod_romfs_find(rom_files[i].path, host, sizeof host, true);  // (a mod's file: runtime/mods.h)
+        if (mod < 0) continue;
         struct stat sb;
         if (stat(host, &sb)) continue;
         if (!ov_meta) {
@@ -273,6 +293,9 @@ static void rom_index(int fd) {
         ov[ov_n].path = strdup(host);
         ov[ov_n].fd = -1;
         ov[ov_n].mem = NULL;
+        ov[ov_n].mod = mod;
+        ov[ov_n].rel = rom_files[i].path;
+        ov[ov_n].seen = false;
         ov_n++;
         ov_end = (ov_end + size + 0xF) & ~0xFull;
     }
@@ -285,6 +308,23 @@ static void rom_index(int fd) {
     LOG("[fs] romfs index: %d files\n", rom_nfiles);
 }
 
+// The first time the game reads a mod's file: which mod served it, and the FNV-1a of that file (the bytes the game
+// gets), so the winner of a conflict can be checked in the log. The first 64 files only.
+static void log_served(Overlay *o) {
+    static int logged;
+    o->seen = true;
+    if (logged >= 64) return;
+    logged++;
+    uint64_t h = 0xcbf29ce484222325ull;
+    int fd = o->size <= (8u << 20) ? open(o->path, O_RDONLY) : -1;  // (a big file is not hashed: no stall)
+    uint8_t buf[16384];
+    for (ssize_t r; fd >= 0 && (r = read(fd, buf, sizeof buf)) > 0;)
+        for (ssize_t k = 0; k < r; k++) h = (h ^ buf[k]) * 0x100000001b3ull;
+    if (fd >= 0) close(fd);
+    LOG("[mods] served %s from '%s' (#%d): %llu bytes, fnv1a %016llx\n", o->rel ? o->rel : o->path,
+        mods_active_name(o->mod) ? mods_active_name(o->mod) : "?", o->mod + 1, (unsigned long long)o->size, (unsigned long long)h);
+}
+
 // Virtual RomFS image read: original bytes, with the patched file table and appended replacement files.
 static ssize_t romfs_read(int fd, uint8_t *dst, uint64_t size, uint64_t off) {
     if (!ov_n) return pread(fd, dst, size, (off_t)off);
@@ -295,6 +335,7 @@ static ssize_t romfs_read(int fd, uint8_t *dst, uint64_t size, uint64_t off) {
             int i = 0;
             while (i < ov_n && !(o >= ov[i].start && o < ov[i].start + ((ov[i].size + 0xF) & ~0xFull))) i++;
             if (i == ov_n) { memset(dst + done, 0, n); done += n; break; }
+            if (!ov[i].seen && ov[i].mod >= 0) log_served(&ov[i]);
             uint64_t in = o - ov[i].start, avail = ((ov[i].size + 0xF) & ~0xFull) - in;
             if (n > avail) n = avail;
             ssize_t r;

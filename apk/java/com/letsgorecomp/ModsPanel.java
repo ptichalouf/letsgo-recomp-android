@@ -17,17 +17,18 @@ import java.util.List;
 import java.util.Locale;
 
 // Settings > Mods: what is common to every way of getting a mod (work/perso/letsgo-recomp-android/mods/ECRAN-MODS.md).
-//   - the installed mods, one row each that turns it on or off (the runtime runs ONE: turning one on turns the other
-//     off), and "Remove";
+//   - the installed mods in the player's LOAD ORDER (mods/.load-order, ModStore.order), one row each: on/off, up,
+//     down, "Remove". Several can be on; a file two active mods both have is served from the higher one (mods.c
+//     mod_romfs_find), and the screen names every such file and the two mods (ModStore.conflicts);
 //   - one amber button, the SLOT (screen spec §3), whose action is NOT decided here: FILE (add a downloaded
 //     .zip/.rar/.7z, the default), LINK (GameBanana in the browser) or CATALOGUE (GameBanana's list in the app).
 //     Alexandre decides; to try one without rebuilding: adb shell setprop debug.letsgo.mods_primary link|catalogue
 //   - installing = ModUnpack (libmodunpack.so) into <filesDir>/mods, the folder the runtime reads (LARECOMP_MODS_DIR);
-//     the active mod is kept in the launcher's preferences and handed to the runtime as LARECOMP_MOD (LetsGoActivity).
+//     the active mods, in order, are handed to the runtime as LARECOMP_MODS="a|b" (LetsGoActivity, activeList).
 //     The player's game folder is never written.
 final class ModsPanel {
     static final int REQ_MOD_FILE = 1005;
-    static final String PREF_MOD = "mod";
+    static final String PREF_MOD = "mod";  // (the one-mod screen's choice: read once, to seed the order)
     enum Primary { FILE, LINK, CATALOGUE }
     private static final int TEXT2 = 0xFFB3BAC5, TEXT3 = 0xFF9AA2AE, ERROR = 0xFFF19A8F, AMBER = 0xFFE8A95B, ON_AMBER = 0xFF22170A;
 
@@ -39,14 +40,18 @@ final class ModsPanel {
 
     static File modsDir(android.content.Context c) { return ModUnpack.dir(c); }
 
-    /** The active mod's folder ("" = none): what LetsGoActivity hands to the runtime as LARECOMP_MOD. */
-    static String active(android.content.Context c) {
-        return c.getSharedPreferences("letsgo", Activity.MODE_PRIVATE).getString(PREF_MOD, "");
+    /** The installed mods in the player's order, each on or off (mods/.load-order). */
+    static List<ModStore.Entry> order(android.content.Context c) {
+        return ModStore.order(modsDir(c).getParentFile(), c.getSharedPreferences("letsgo", Activity.MODE_PRIVATE).getString(PREF_MOD, ""));
     }
 
-    private void setActive(String name) {
-        a.getSharedPreferences("letsgo", Activity.MODE_PRIVATE).edit().putString(PREF_MOD, name).apply();
-        android.util.Log.i("lasrecomp", "[mods] active = '" + name + "'");
+    /** The active mods, highest priority first ("a|b", "" = none): what LetsGoActivity hands over as LARECOMP_MODS. */
+    static String activeList(android.content.Context c) { return ModStore.activeList(order(c)); }
+
+    private void save(List<ModStore.Entry> l) {
+        try { ModStore.saveOrder(modsDir(a).getParentFile(), l); }
+        catch (java.io.IOException e) { android.util.Log.w("lasrecomp", "[mods] order not saved: " + e); }
+        android.util.Log.i("lasrecomp", "[mods] order = " + l + " -> LARECOMP_MODS='" + ModStore.activeList(l) + "'");
     }
 
     static Primary primaryFromProperty() {
@@ -65,7 +70,7 @@ final class ModsPanel {
         list = new LinearLayout(a);
         list.setOrientation(LinearLayout.VERTICAL);
         section.addView(list, lp());
-        section.addView(text(Txt.t("mods_one_at_a_time", "Um mod ativo por vez: ativar um desativa o outro."), TEXT3, 12));
+        section.addView(text(Txt.t("mods_order_rule", "Ordem de carregamento: se dois mods ativos trocam o mesmo arquivo, vale o que está mais acima. Use ▲ ▼ para mudar."), TEXT3, 12));
         slot = new LinearLayout(a);
         slot.setOrientation(LinearLayout.VERTICAL);
         section.addView(slot, lp());
@@ -101,14 +106,15 @@ final class ModsPanel {
         if (list == null) return;
         list.removeAllViews();
         File root = modsDir(a).getParentFile();
-        List<String> mods = ModStore.installed(root);
-        String active = active(a);
-        if (!active.isEmpty() && !mods.contains(active)) { setActive(""); active = ""; }  // (gone: nothing to hand over)
-        if (mods.isEmpty()) list.addView(text(Txt.t("mods_empty", "Nenhum mod instalado."), TEXT2, 14));
-        for (final String m : mods) {
+        final List<ModStore.Entry> order = order(a);
+        if (order.isEmpty()) list.addView(text(Txt.t("mods_empty", "Nenhum mod instalado."), TEXT2, 14));
+        int rank = 0;
+        for (int i = 0; i < order.size(); i++) {
+            final ModStore.Entry e = order.get(i);
+            final String m = e.name;
             java.util.Properties src = ModStore.source(root, m);
             String author = src.getProperty("author", "");
-            String meta = (m.equals(active) ? Txt.t("mods_on", "Ativo") : Txt.t("mods_off", "Inativo")) + " · "
+            String meta = (e.on ? String.format(Txt.t("mods_on_rank", "Ativo · nº %1$d"), ++rank) : Txt.t("mods_off", "Inativo")) + " · "
                 + (author.isEmpty() ? Txt.t("mods_by_unknown", "autor não informado") : String.format(Txt.t("mods_by", "por %1$s"), author))
                 + " · " + (src.getProperty("gamebanana.mod", "").isEmpty() ? Txt.t("mods_src_file", "arquivo importado") : Txt.t("mods_src_gb", "GameBanana"));
             LinearLayout row = new LinearLayout(a);
@@ -118,24 +124,49 @@ final class ModsPanel {
             sw.setText(m + "\n" + meta);
             sw.setTextColor(Color.rgb(200, 210, 220));
             sw.setMinHeight(dp(56));
-            sw.setChecked(m.equals(active));
+            sw.setChecked(e.on);
             sw.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener() {
                 @Override public void onCheckedChanged(android.widget.CompoundButton b, boolean on) {
-                    String was = active(a);
-                    setActive(on ? m : "");
-                    String msg = Txt.t("mods_next_play", "Vale a partir do próximo Jogar.");
-                    if (on && !was.isEmpty() && !was.equals(m)) msg = String.format(Txt.t("mods_switched_off", "%1$s foi desativado."), was) + " " + msg;
-                    toast(msg);
+                    e.on = on;
+                    save(order);
+                    toast(Txt.t("mods_next_play", "Vale a partir do próximo Jogar."));
                     list.post(new Runnable() { @Override public void run() { refresh(); } });
                 }
             });
             row.addView(sw, new LinearLayout.LayoutParams(0, -2, 1f));
+            row.addView(arrow("▲", String.format(Txt.t("mods_up", "Subir %1$s"), m), i > 0, m, -1, order), new LinearLayout.LayoutParams(dp(48), -2));
+            row.addView(arrow("▼", String.format(Txt.t("mods_down", "Descer %1$s"), m), i < order.size() - 1, m, 1, order), new LinearLayout.LayoutParams(dp(48), -2));
             Button rm = button(Txt.t("mods_remove", "Remover"), new Runnable() { @Override public void run() { confirmRemove(m); } });
             rm.setTextColor(ERROR);
             rm.setBackgroundColor(Color.TRANSPARENT);
             row.addView(rm, new LinearLayout.LayoutParams(-2, -2));
             list.addView(row, lp());
         }
+        // Two active mods that write the same file: say which file, which two, and which one the game gets.
+        List<ModStore.Conflict> cs = ModStore.conflicts(root, ModStore.active(order));
+        if (!cs.isEmpty()) {
+            list.addView(text(String.format(Txt.t("mods_conflicts", "Conflitos: %1$d arquivo(s) trocado(s) por dois mods ativos"), cs.size()), AMBER, 14));
+            for (int i = 0; i < cs.size() && i < 6; i++) {
+                ModStore.Conflict c = cs.get(i);
+                android.util.Log.i("lasrecomp", "[mods] conflict on screen: " + c.path + ": '" + c.winner + "' over '" + c.loser + "'");
+                list.addView(text(String.format(Txt.t("mods_conflict", "%1$s: está em %2$s e em %3$s. Vale %2$s (mais acima)."), c.path, c.winner, c.loser), AMBER, 12));
+            }
+            if (cs.size() > 6) list.addView(text(String.format(Txt.t("mods_conflicts_more", "… e mais %1$d."), cs.size() - 6), AMBER, 12));
+        }
+    }
+
+    private Button arrow(String glyph, String desc, boolean enabled, final String name, final int delta, final List<ModStore.Entry> order) {
+        Button b = button(glyph, new Runnable() {
+            @Override public void run() {
+                if (ModStore.move(order, name, delta)) { save(order); refresh(); }
+            }
+        });
+        b.setContentDescription(desc);
+        b.setEnabled(enabled);
+        b.setAlpha(enabled ? 1f : 0.3f);
+        b.setBackgroundColor(Color.TRANSPARENT);
+        b.setTextColor(Color.rgb(200, 210, 220));
+        return b;
     }
 
     // ------------------------------------------------------------------ adding a file (every slot has it)
@@ -201,6 +232,7 @@ final class ModsPanel {
                     android.util.Log.i("lasrecomp", "[mods] unpack '" + fileName + "' -> " + result);
                     ModStore.Unpacked r = ModStore.Unpacked.parse(result);
                     if (r.ok && !r.mods.isEmpty()) {
+                        List<ModStore.Entry> order = order(a);
                         for (String m : r.mods) {
                             java.util.Properties src = new java.util.Properties();
                             src.setProperty("file", fileName);
@@ -212,8 +244,11 @@ final class ModsPanel {
                             }
                             ModStore.writeSource(dir.getParentFile(), m, src);
                         }
-                        setActive(r.mods.get(0));
+                        ModStore.addInstalled(order, r.mods.get(0));  // (on, last when new; the other variants stay off)
+                        save(order);
                         verdict = String.format(Txt.t("mods_installed_on", "%1$s instalado e ativo."), r.mods.get(0));
+                        if (ModStore.active(order).size() > 1) verdict += "\n" + String.format(Txt.t("mods_installed_rank",
+                            "Ele fica em nº %1$d na ordem: os mods acima dele valem nos arquivos em comum."), ModStore.active(order).indexOf(r.mods.get(0)) + 1);
                         if (r.mods.size() > 1) verdict += "\n" + String.format(Txt.t("mods_variants", "Este mod tem %1$d versões"), r.mods.size());
                         if (r.code > 0) verdict += "\n" + Txt.t("mods_code_part", "Uma parte deste mod modifica o programa do jogo: essa parte não pode ser aplicada aqui. O resto (imagens, modelos, textos) será.");
                     } else {
@@ -267,7 +302,7 @@ final class ModsPanel {
             .setPositiveButton(Txt.t("mods_remove", "Remover"), new DialogInterface.OnClickListener() {
                 @Override public void onClick(DialogInterface d, int w) {
                     boolean ok = ModStore.remove(root, name);
-                    if (name.equals(active(a))) setActive("");
+                    save(order(a));  // (gone from the order; the others keep their places relative to each other)
                     android.util.Log.i("lasrecomp", "[mods] removed '" + name + "': " + ok);
                     toast(String.format(Txt.t("mods_removed", "%1$s removido."), name));
                     refresh();

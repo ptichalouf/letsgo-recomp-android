@@ -210,8 +210,6 @@
     <string name="mods_on">"Actif"</string>
     <string name="mods_off">"Inactif"</string>
     <string name="mods_next_play">"Pris en compte au prochain « Jouer »."</string>
-    <string name="mods_one_at_a_time">"Un seul mod actif à la fois : en activer un désactive l\'autre."</string>
-    <string name="mods_switched_off">"%1$s a été désactivé."</string>
     <string name="mods_details">"Détails"</string>
     <string name="mods_file">"Fichier"</string>
     <string name="mods_space">"Place sur l\'appareil"</string>
@@ -245,4 +243,12 @@
     <string name="mods_fail_code_only">"Ce mod ne modifie que le programme du jeu, ce que ce portage ne sait pas appliquer."</string>
     <string name="mods_fail_format">"Le format .%1$s n\'est pas encore pris en charge : décompresse le fichier et ajoute le dossier."</string>
     <string name="mods_play_with">"Avec %1$d mods actifs"</string>
+    <string name="mods_order_rule">"Ordre de chargement : si deux mods actifs remplacent le même fichier, celui placé plus haut l\'emporte. Utilise ▲ ▼ pour le changer."</string>
+    <string name="mods_on_rank">"Actif · n° %1$d"</string>
+    <string name="mods_up">"Monter %1$s"</string>
+    <string name="mods_down">"Descendre %1$s"</string>
+    <string name="mods_conflicts">"Conflits : %1$d fichier(s) remplacé(s) par deux mods actifs"</string>
+    <string name="mods_conflict">"%1$s : dans %2$s et dans %3$s. C\'est %2$s qui l\'emporte (plus haut)."</string>
+    <string name="mods_conflicts_more">"… et %1$d de plus."</string>
+    <string name="mods_installed_rank">"Il est n° %1$d dans l\'ordre : les mods au-dessus de lui l\'emportent sur les fichiers en commun."</string>
 </resources>

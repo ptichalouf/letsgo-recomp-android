@@ -43,11 +43,22 @@ Tant que rien n'est décidé, le bouton reste sur `file`.
   dossier par `LARECOMP_MODS_DIR` (`src/runtime/mods.c`, `mods_dir()`). Seuls les dossiers `romfs/` sont écrits ; les
   parties « code » (`exefs/`, `.ips`, `.pchtxt`) sont comptées et ignorées ; une archive à plusieurs variantes donne
   un dossier par variante.
-- **Activer / désactiver** : un interrupteur par mod. Le mod actif est une préférence du lanceur, passée au runtime
-  par la variable `LARECOMP_MOD` (`LetsGoActivity`, puis `mods.c`, `active_mod()`). Vide = aucun mod. **Aucun fichier
-  n'est déplacé ni réécrit** pour activer ou désactiver. Sans `LARECOMP_MOD` (PC), c'est la clé `mod` de
-  `larecomp.ini` qui s'applique, comme avant.
-- **Un seul mod actif** à la fois : le moteur n'a qu'un emplacement. En activer un désactive l'autre.
+- **Activer / désactiver, et l'ordre** : un interrupteur par mod, plusieurs mods actifs à la fois, et ▲ ▼ pour les
+  ranger. L'ordre (actifs et inactifs) est dans `<filesDir>/mods/.load-order` (une ligne `on<TAB>nom` / `off<TAB>nom`
+  par mod) ; il survit à la fermeture de l'appli et à sa mise à jour. Les mods actifs passent au runtime **dans cet
+  ordre**, le plus prioritaire d'abord, par `LARECOMP_MODS="a|b"` (`LetsGoActivity`, puis `mods.c`, `active_mods()`).
+  Vide = aucun mod. Sans `LARECOMP_MODS` : `LARECOMP_MOD` (un mod), sinon la clé `mod` de `larecomp.ini` (PC), comme
+  avant. L'ordre est celui de la liste, jamais celui du dossier (`readdir` dépend du système de fichiers). **Aucun
+  fichier n'est déplacé ni réécrit** pour activer, désactiver ou ranger.
+- **Fichier commun à deux mods actifs** : le moteur sert la copie du mod placé le plus haut (`mod_romfs_find`), les
+  autres copies sont ignorées. L'écran le dit (« Conflits : … : dans A et dans B. C'est A qui l'emporte »), le journal
+  aussi (`[mods] conflict: <fichier> is in 'A' (#1, served) and 'B' (#2, hidden)`), et la première lecture de chaque
+  fichier de mod par le jeu est journalisée avec son empreinte (`[mods] served <fichier> from 'A' (#1): <taille>
+  bytes, fnv1a <…>`). Les fichiers propres à chaque mod sont tous servis : les mods s'empilent.
+- **Langue** : celle du premier mod actif (dans l'ordre) dont les textes sont ceux d'une seule langue.
+- **Installer** un mod l'active et le met en dernier (il ne passe jamais devant les mods déjà actifs sans qu'on le
+  range) ; réinstaller un mod encore listé garde sa place. **Retirer** un mod l'ôte de l'ordre, les autres gardent
+  leurs places les uns par rapport aux autres.
 - **Retirer** : supprime `mods/<nom>` (un dossier placé directement dans `mods/`, liens non suivis). Les sauvegardes ne
   sont pas touchées.
 - **Le dossier du jeu du joueur n'est jamais écrit** par l'écran Mods : ni `mods/`, ni `larecomp.ini`.
@@ -73,11 +84,15 @@ Tant que rien n'est décidé, le bouton reste sur `file`.
 AJ=$ANDROID_SDK_ROOT/platforms/android-34/android.jar
 javac -encoding UTF-8 -cp $AJ -d /tmp/mst apk/java/com/letsgorecomp/{ModStore,GameBanana,ModsPanel,ModUnpack,Txt}.java apk/test/ModStoreTest.java
 java -cp /tmp/mst:$AJ com.letsgorecomp.ModStoreTest      # depuis la racine du dépôt
+
+cd src && clang -O2 -Iruntime tools/test_mods_order.c runtime/mods.c -lpthread -o build/test_mods_order \
+  && build/test_mods_order                                 # le moteur : deux mods qui se chevauchent, dans les deux ordres
 ```
 
 ## Limites connues
 
-- Un seul mod actif à la fois (moteur). Pour en empiler plusieurs, `mods.c` devrait chercher dans une liste ordonnée.
+- Conflits : l'écran compare les fichiers sous `romfs/` des mods actifs ; un fichier qu'aucun dossier du jeu ne peut
+  recevoir (le moteur l'ignore) y est aussi compté.
 - Correctifs de code (exefs, IPS, pchtxt) : jamais appliqués. Ce portage exécute du code recompilé, pas le programme
   d'origine. Un mod qui mêle données et code est chargé sans son code, ce qui peut le rendre incohérent.
 - Un mod qui ne contient qu'une langue de textes (`bin/message/<Langue>/`) force cette langue dans le jeu

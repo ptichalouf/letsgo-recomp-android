@@ -16,11 +16,13 @@ import java.util.Locale;
 //
 //   <data root>/mods/<name>/romfs/...   one mod: LayeredFS replacement files (mods.c find_romfs looks up to 4 levels
 //                                       down; what this class installs always has romfs/ right inside <name>/)
-//   the ONE active mod: LARECOMP_MOD (LetsGoActivity, from ModsPanel.active), else larecomp.ini's mod. The runtime
-//                                       has a single slot: stacking several would need mods.c to search a list.
+//   <data root>/mods/.load-order        the player's order of the installed mods, each on or off (order() below)
+//   the active mods, in that order: LARECOMP_MODS="a|b|c" (LetsGoActivity, from activeList), highest priority first.
+//                                       mods.c serves a file several active mods have from the first one listed
+//                                       (mod_romfs_find); conflicts() finds the same files, to say so on the screen.
 //
 // Installing is ModUnpack's (libmodunpack.so): it writes <filesDir>/mods/<name>/.../romfs only. This class lists,
-// names, removes, and reads ModUnpack's answer. The active mod is the launcher's preference (ModsPanel.active).
+// names, removes, orders, and reads ModUnpack's answer.
 final class ModStore {
     static final String EEVEE_TITLE = "0100187003A36000", PIKACHU_TITLE = "010003F003A34000";
     static final String SOURCE_FILE = ".letsgo-mod.properties";  // where an installed mod came from (GameBanana id...)
@@ -165,6 +167,140 @@ final class ModStore {
         if (!validName(name)) return;
         OutputStream o = new FileOutputStream(new File(new File(modsDir(dataRoot), name), SOURCE_FILE));
         try { p.store(o, "Let's Go Recomp: where this mod came from"); } finally { o.close(); }
+    }
+
+    // ------------------------------------------------------------------ load order and conflicts
+
+    static final String ORDER_FILE = ".load-order";  // in mods/: one "on<TAB>name" / "off<TAB>name" line per mod
+
+    /** One installed mod in the player's order. */
+    static final class Entry {
+        final String name;
+        boolean on;
+        Entry(String name, boolean on) { this.name = name; this.on = on; }
+        @Override public String toString() { return (on ? "+" : "-") + name; }
+    }
+
+    /** A name the order file and LARECOMP_MODS can carry ('|' separates the list, one line per mod). */
+    static boolean orderName(String n) {
+        return validName(n) && n.indexOf('|') < 0 && n.indexOf('\n') < 0 && n.indexOf('\r') < 0 && n.indexOf('\t') < 0;
+    }
+
+    /** The installed mods in the player's order (mods/.load-order). A mod no longer installed is dropped and the
+     *  others keep their places relative to each other; an installed mod the file does not know yet goes last, off
+     *  (sorted by name among themselves). No file yet: installed() order, legacyActive (the one-mod screen's
+     *  choice) on. Nothing is written here: saveOrder does. */
+    static List<Entry> order(File dataRoot, String legacyActive) {
+        List<String> inst = installed(dataRoot);
+        List<Entry> out = new ArrayList<>();
+        File f = new File(modsDir(dataRoot), ORDER_FILE);
+        if (f.isFile()) {
+            try {
+                for (String line : new String(readAll(f), "UTF-8").split("\n")) {
+                    int tab = line.indexOf('\t');
+                    if (tab < 0) continue;
+                    String name = line.substring(tab + 1);
+                    if (!orderName(name) || !inst.contains(name) || indexOf(out, name) >= 0) continue;
+                    out.add(new Entry(name, line.substring(0, tab).equals("on")));
+                }
+            } catch (IOException ignored) {}
+        } else {
+            for (String m : inst) if (orderName(m)) out.add(new Entry(m, m.equals(legacyActive)));
+        }
+        for (String m : inst) if (orderName(m) && indexOf(out, m) < 0) out.add(new Entry(m, false));
+        return out;
+    }
+
+    static void saveOrder(File dataRoot, List<Entry> l) throws IOException {
+        StringBuilder b = new StringBuilder();
+        for (Entry e : l) if (orderName(e.name)) b.append(e.on ? "on" : "off").append('\t').append(e.name).append('\n');
+        File dir = modsDir(dataRoot), tmp = new File(dir, ORDER_FILE + ".tmp");
+        dir.mkdirs();
+        OutputStream o = new FileOutputStream(tmp);
+        try { o.write(b.toString().getBytes("UTF-8")); } finally { o.close(); }
+        if (!tmp.renameTo(new File(dir, ORDER_FILE))) throw new IOException("cannot write " + ORDER_FILE);
+    }
+
+    static int indexOf(List<Entry> l, String name) {
+        for (int i = 0; i < l.size(); i++) if (l.get(i).name.equals(name)) return i;
+        return -1;
+    }
+
+    /** Move name one place up (delta -1) or down (+1); false at either end. */
+    static boolean move(List<Entry> l, String name, int delta) {
+        int i = indexOf(l, name), j = i + delta;
+        if (i < 0 || j < 0 || j >= l.size()) return false;
+        Collections.swap(l, i, j);
+        return true;
+    }
+
+    /** A freshly installed mod: on, and last when new (lowest priority: it never silently overrides the mods
+     *  already on); one already in the list (installed again) keeps its place. */
+    static void addInstalled(List<Entry> l, String name) {
+        int i = indexOf(l, name);
+        if (i >= 0) l.get(i).on = true;
+        else if (orderName(name)) l.add(new Entry(name, true));
+    }
+
+    /** The active mods, highest priority first. */
+    static List<String> active(List<Entry> l) {
+        List<String> out = new ArrayList<>();
+        for (Entry e : l) if (e.on) out.add(e.name);
+        return out;
+    }
+
+    /** What LetsGoActivity hands to the runtime as LARECOMP_MODS ("" = no mod). */
+    static String activeList(List<Entry> l) {
+        StringBuilder b = new StringBuilder();
+        for (String n : active(l)) { if (b.length() > 0) b.append('|'); b.append(n); }
+        return b.toString();
+    }
+
+    /** One RomFS file two active mods both have: winner's copy is served (it is listed first), loser's is hidden. */
+    static final class Conflict {
+        final String path, winner, loser;
+        Conflict(String path, String winner, String loser) { this.path = path; this.winner = winner; this.loser = loser; }
+        @Override public String toString() { return path + ": " + winner + " > " + loser; }
+    }
+
+    /** The mod's romfs/ as mods.c find_romfs picks it for what ModUnpack installs (romfs/ right inside), else the
+     *  first one found up to 4 levels down; null = none. */
+    static File romfsRoot(File modDir) {
+        File r = new File(modDir, "romfs");
+        if (r.isDirectory() && !isLink(r)) return r;
+        List<File> l = romfsDirs(modDir, 4);
+        return l.isEmpty() ? null : l.get(0);
+    }
+
+    /** Every file two of the active mods (highest priority first) both have, in list order: the same rule as
+     *  mods.c mod_romfs_find (the first mod that has a file serves it). */
+    static List<Conflict> conflicts(File dataRoot, List<String> active) {
+        List<Conflict> out = new ArrayList<>();
+        java.util.Map<String, String> owner = new java.util.HashMap<>();
+        for (String m : active) {
+            File root = romfsRoot(new File(modsDir(dataRoot), m));
+            if (root == null) continue;
+            List<String> files = new ArrayList<>();
+            listFiles(root, "", files);
+            for (String p : files) {
+                String first = owner.get(p);
+                if (first == null) owner.put(p, m);
+                else out.add(new Conflict(p, first, m));
+            }
+        }
+        return out;
+    }
+
+    private static void listFiles(File dir, String rel, List<String> out) {
+        File[] kids = dir.listFiles();
+        if (kids == null) return;
+        java.util.Arrays.sort(kids);
+        for (File k : kids) {
+            if (isLink(k)) continue;
+            String p = rel.isEmpty() ? k.getName() : rel + "/" + k.getName();
+            if (k.isDirectory()) listFiles(k, p, out);
+            else if (k.isFile()) out.add(p);
+        }
     }
 
     static void deleteTree(File f) {
