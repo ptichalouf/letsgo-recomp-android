@@ -16,7 +16,9 @@ mkdir -p $OUT/classes $OUT/dex $OUT/lib/arm64-v8a
 
 # 1. java -> classes (our activity + SDL3's java)
 find apk/java deps/SDL3/android-project/app/src/main/java -name "*.java" > $OUT/sources.txt
-javac -encoding UTF-8 -source 8 -target 8 -bootclasspath $PLATFORM -d $OUT/classes \
+# (-classpath, not -bootclasspath: with JDK 17 the lambdas of the launcher need the JDK's LambdaMetafactory; d8 then
+# turns the Java 8 bytecode into dex against android.jar)
+javac -encoding UTF-8 -source 8 -target 8 -classpath $PLATFORM -d $OUT/classes \
     @$OUT/sources.txt 2>$OUT/javac.log || { echo JAVAC_FAIL; tail -5 $OUT/javac.log; exit 1; }
 
 # 2. classes -> dex
@@ -25,6 +27,8 @@ $BT/d8 --min-api 28 --lib $PLATFORM --output $OUT/dex \
 
 # 3. native libs (unversioned copies: the APK lib dir wants plain lib*.so names)
 cp $ROOT/build/apk-lib/*.so $OUT/lib/arm64-v8a/ 2>/dev/null
+# libmodunpack.so (build-modunpack.sh): the mod screen's unpacker (zip, rar, 7z). Without it, installing a mod fails.
+[ -f $OUT/lib/arm64-v8a/libmodunpack.so ] || echo "WARNING: build/apk-lib/libmodunpack.so missing (./build-modunpack.sh): mods cannot be installed"
 cp $ROOT/deps/SDL3/build-android/libSDL3.so $OUT/lib/arm64-v8a/
 cp $ROOT/build/game/liblasgame.so $OUT/lib/arm64-v8a/ 2>/dev/null
 # The runtime and the game library are one pair: the runtime refuses a liblasgame built from another generator

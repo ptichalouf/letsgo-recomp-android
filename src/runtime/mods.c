@@ -86,7 +86,14 @@ static const char *romfs_of(const char *name) {
     return ok ? dir : NULL;
 }
 
-const char *mod_romfs_dir(void) { return romfs_of(g_settings.mod); }
+// The active mod: LARECOMP_MOD when set (Android: the launcher's choice, so the player's larecomp.ini is never
+// rewritten; empty = none), else larecomp.ini's mod.
+static const char *active_mod(void) {
+    const char *e = getenv("LARECOMP_MOD");
+    return e ? e : g_settings.mod;
+}
+
+const char *mod_romfs_dir(void) { return romfs_of(active_mod()); }
 
 bool mod_romfs_override(const char *path, char *out, size_t cap) {
     const char *root = mod_romfs_dir();
@@ -117,7 +124,7 @@ const char *mod_language(const char *name) {
 }
 
 const char *game_language(void) {
-    const char *m = mod_language(g_settings.mod);
+    const char *m = mod_language(active_mod());
     if (m) return m;
     // Fan translations REPLACE the English files (keeping the folder name "English").
     // The game must request en-US to load the translated PT-BR text.
