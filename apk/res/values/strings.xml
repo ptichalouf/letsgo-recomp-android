@@ -233,9 +233,7 @@
     <!-- confirmation après une bascule -->
     <string name="mods_next_play">"Vale a partir do próximo Jogar."</string>
     <!-- sous la liste, si le moteur ne sait en charger qu'un -->
-    <string name="mods_one_at_a_time">"Um mod ativo por vez: ativar um desativa o outro."</string>
     <!-- toast, mode un seul mod -->
-    <string name="mods_switched_off">"%1$s foi desativado."</string>
     <!-- bouton ⋯ d'un mod (accessibilité) ; titre de la feuille -->
     <string name="mods_details">"Detalhes"</string>
     <!-- feuille de détails / d'installation -->
@@ -302,4 +300,12 @@
     <string name="mods_fail_format">"O formato .%1$s ainda não é suportado: descompacte o arquivo e adicione a pasta."</string>
     <!-- accueil, ligne d'état sous « Jouer » (proposée, non maquettée) -->
     <string name="mods_play_with">"Com %1$d mods ativos"</string>
+    <string name="mods_order_rule">"Ordem de carregamento: se dois mods ativos trocam o mesmo arquivo, vale o que está mais acima. Use ▲ ▼ para mudar."</string>
+    <string name="mods_on_rank">"Ativo · nº %1$d"</string>
+    <string name="mods_up">"Subir %1$s"</string>
+    <string name="mods_down">"Descer %1$s"</string>
+    <string name="mods_conflicts">"Conflitos: %1$d arquivo(s) trocado(s) por dois mods ativos"</string>
+    <string name="mods_conflict">"%1$s: está em %2$s e em %3$s. Vale %2$s (mais acima)."</string>
+    <string name="mods_conflicts_more">"… e mais %1$d."</string>
+    <string name="mods_installed_rank">"Ele fica em nº %1$d na ordem: os mods acima dele valem nos arquivos em comum."</string>
 </resources>

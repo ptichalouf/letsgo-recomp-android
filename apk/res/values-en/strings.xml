@@ -210,8 +210,6 @@
     <string name="mods_on">"On"</string>
     <string name="mods_off">"Off"</string>
     <string name="mods_next_play">"Takes effect at the next Play."</string>
-    <string name="mods_one_at_a_time">"One mod on at a time: turning one on turns the other off."</string>
-    <string name="mods_switched_off">"%1$s was turned off."</string>
     <string name="mods_details">"Details"</string>
     <string name="mods_file">"File"</string>
     <string name="mods_space">"Space on the device"</string>
@@ -245,4 +243,12 @@
     <string name="mods_fail_code_only">"This mod only changes the game\'s program, which this port can\'t apply."</string>
     <string name="mods_fail_format">"The .%1$s format isn\'t supported yet: unpack the file and add the folder."</string>
     <string name="mods_play_with">"With %1$d mods on"</string>
+    <string name="mods_order_rule">"Load order: when two active mods replace the same file, the higher one wins. Use ▲ ▼ to change it."</string>
+    <string name="mods_on_rank">"On · #%1$d"</string>
+    <string name="mods_up">"Move %1$s up"</string>
+    <string name="mods_down">"Move %1$s down"</string>
+    <string name="mods_conflicts">"Conflicts: %1$d file(s) replaced by two active mods"</string>
+    <string name="mods_conflict">"%1$s: in %2$s and in %3$s. %2$s wins (higher)."</string>
+    <string name="mods_conflicts_more">"… and %1$d more."</string>
+    <string name="mods_installed_rank">"It is #%1$d in the order: the mods above it win on the files they share."</string>
 </resources>

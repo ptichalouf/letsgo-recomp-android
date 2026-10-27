@@ -8,9 +8,9 @@ import java.nio.file.Path;
 import java.util.List;
 
 // The mod screen's pure parts on a PC, no phone, no game files (fake folders in a temp dir):
-// ModStore (names, what is installed, removal, origin, ModUnpack's answer), GameBanana.fileProblem, the amber
-// button's default, and source checks that hold the v2 rules (the game folder is never written, the active mod
-// reaches the runtime through LARECOMP_MOD). Run from the repository root:
+// ModStore (names, what is installed, removal, origin, ModUnpack's answer, the load order and the conflicts it shows),
+// GameBanana.fileProblem, the amber button's default, and source checks (the game folder is never written, the active
+// mods reach the runtime in order through LARECOMP_MODS). Run from the repository root:
 //   AJ=$ANDROID_SDK_ROOT/platforms/android-34/android.jar
 //   javac -encoding UTF-8 -cp $AJ -d /tmp/mst apk/java/com/letsgorecomp/{ModStore,GameBanana,ModsPanel,ModUnpack,Txt}.java apk/test/ModStoreTest.java
 //   java -cp /tmp/mst:$AJ com.letsgorecomp.ModStoreTest
@@ -38,6 +38,83 @@ public class ModStoreTest {
     }
 
     static String src(String p) throws IOException { return new String(Files.readAllBytes(Path.of(p)), "UTF-8"); }
+
+    static String names(List<ModStore.Entry> l) { return l.toString(); }
+
+    /** Fills a mod folder the way ModUnpack leaves it: mods/<name>/romfs/<files>. */
+    static void mod(File root, String name, String... files) throws IOException {
+        for (String f : files) write(new File(ModStore.modsDir(root), name + "/romfs/" + f), name + ":" + f);
+    }
+
+    /** The French string res/values-fr gives `key', as Android reads it (quotes off, \\' -> '). */
+    static String fr(String key) throws IOException {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("<string name=\"" + key + "\">\"(.*)\"</string>")
+            .matcher(src("apk/res/values-fr/strings.xml"));
+        return m.find() ? m.group(1).replace("\\'", "'") : null;
+    }
+
+    // ---- several mods on, in the player's order (mods/.load-order), and the conflicts the screen shows
+    static void loadOrder() throws Exception {
+        File root = tmp();
+        String common = "bin/message/English/common/monsname.dat";
+        mod(root, "Mod A", common, "bin/only_a.dat");
+        mod(root, "Mod B", common, "bin/only_b1.dat", "bin/only_b2.dat");
+        mod(root, "Mod C", "bin/only_c.dat");
+
+        // no order file yet: the one-mod screen's choice seeds it
+        List<ModStore.Entry> o = ModStore.order(root, "Mod B");
+        check("order: first run, installed order, the old active mod on", names(o).equals("[-Mod A, +Mod B, -Mod C]"));
+        check("order: nothing written until saved", !new File(ModStore.modsDir(root), ModStore.ORDER_FILE).exists());
+
+        // turn A on, move it below B, save: what the runtime gets is B first
+        o.get(ModStore.indexOf(o, "Mod A")).on = true;
+        check("move: down", ModStore.move(o, "Mod A", 1) && names(o).equals("[+Mod B, +Mod A, -Mod C]"));
+        check("move: past either end refused", !ModStore.move(o, "Mod B", -1) && !ModStore.move(o, "Mod C", 1) && !ModStore.move(o, "None", 1));
+        ModStore.saveOrder(root, o);
+        check("LARECOMP_MODS: active ones, highest priority first", ModStore.activeList(o).equals("Mod B|Mod A"));
+        check("order survives closing the app (read back from the file)", names(ModStore.order(root, "")).equals("[+Mod B, +Mod A, -Mod C]"));
+        check("the order file is not a mod", !ModStore.installed(root).contains(ModStore.ORDER_FILE));
+
+        // two overlapping mods on: the screen's conflict, in both orders
+        List<ModStore.Conflict> cs = ModStore.conflicts(root, ModStore.active(o));
+        check("conflict: the common file, B (higher) over A", cs.size() == 1 && cs.get(0).path.equals(common)
+            && cs.get(0).winner.equals("Mod B") && cs.get(0).loser.equals("Mod A"));
+        String fmt = fr("mods_conflict");
+        String msg = fmt == null ? "" : String.format(fmt, cs.get(0).path, cs.get(0).winner, cs.get(0).loser);
+        System.out.println("     screen: " + msg);
+        check("conflict: the screen names the file and both mods",
+            msg.equals(common + " : dans Mod B et dans Mod A. C'est Mod B qui l'emporte (plus haut)."));
+        ModStore.move(o, "Mod A", -1);
+        cs = ModStore.conflicts(root, ModStore.active(o));
+        check("conflict: other order, A over B", cs.size() == 1 && cs.get(0).winner.equals("Mod A") && cs.get(0).loser.equals("Mod B"));
+        check("no conflict with a mod turned off", ModStore.conflicts(root, java.util.Arrays.asList("Mod A", "Mod C")).isEmpty());
+        ModStore.move(o, "Mod A", 1);
+        ModStore.saveOrder(root, o);
+
+        // removing a mod: the others keep their places relative to each other
+        o.get(ModStore.indexOf(o, "Mod C")).on = true;
+        ModStore.move(o, "Mod C", -1);
+        ModStore.saveOrder(root, o);                                     // B, C, A
+        check("before removal", names(ModStore.order(root, "")).equals("[+Mod B, +Mod C, +Mod A]"));
+        ModStore.remove(root, "Mod C");
+        o = ModStore.order(root, "");
+        check("removal: B still above A, nothing else moved", names(o).equals("[+Mod B, +Mod A]"));
+        ModStore.saveOrder(root, o);
+        // installed again: last (it never silently overrides the mods already on), and on
+        mod(root, "Mod C", "bin/only_c.dat");
+        o = ModStore.order(root, "");
+        ModStore.addInstalled(o, "Mod C");
+        check("reinstall: goes last, on; B and A unchanged", names(o).equals("[+Mod B, +Mod A, +Mod C]"));
+        ModStore.addInstalled(o, "Mod B");
+        check("installing a mod already listed keeps its place", names(o).equals("[+Mod B, +Mod A, +Mod C]"));
+
+        // a damaged / hand-edited file never breaks the list
+        write(new File(ModStore.modsDir(root), ModStore.ORDER_FILE), "garbage\non\tMod A\non\t../evil\noff\tMod A\non\tGone\n");
+        check("damaged file: junk, unknown, repeated and ../ names dropped, the rest appended off",
+            names(ModStore.order(root, "")).equals("[+Mod A, -Mod B, -Mod C]"));
+        check("names with '|' can't go into LARECOMP_MODS", !ModStore.orderName("a|b") && !ModStore.orderName("a\tb") && ModStore.orderName("Mod A"));
+        ModStore.deleteTree(root);
+    }
 
     public static void main(String[] args) throws Exception {
         // ---- names (same rule as mods.c install_thread)
@@ -134,14 +211,17 @@ public class ModStoreTest {
         check("panel never writes larecomp.ini", !panel.contains("larecomp.ini") && !panel.contains("Settings.write"));
         check("panel/store never use the game folder", !panel.contains("gameDir(") && !store.contains("gameDir("));
         check("panel installs into the app's mods dir", panel.contains("ModUnpack.dir(c)") && panel.contains("ModUnpack.unpack("));
-        check("activity hands the active mod over", act.contains("setenv(\"LARECOMP_MOD\", ModsPanel.active(this)")
-            && act.contains("setenv(\"LARECOMP_MODS_DIR\""));
-        check("runtime reads LARECOMP_MOD before larecomp.ini", modsc.contains("getenv(\"LARECOMP_MOD\")")
-            && modsc.contains("romfs_of(active_mod())") && modsc.contains("mod_language(active_mod())"));
+        check("activity hands the ordered active list over", act.contains("ModsPanel.activeList(this)")
+            && act.contains("setenv(\"LARECOMP_MODS\", mods") && act.contains("setenv(\"LARECOMP_MODS_DIR\""));
+        check("runtime reads LARECOMP_MODS, then LARECOMP_MOD, then larecomp.ini", modsc.indexOf("getenv(\"LARECOMP_MODS\")") >= 0
+            && modsc.indexOf("getenv(\"LARECOMP_MODS\")") < modsc.indexOf("getenv(\"LARECOMP_MOD\")") && modsc.contains("g_settings.mod"));
+        check("runtime: the first active mod that has a file serves it (no readdir order)", modsc.contains("int mod_romfs_find(")
+            && modsc.contains("if (won < 0) {"));
         check("no second unpacker (libmodarc) left", !new File("apk/java/com/letsgorecomp/ModArchive.java").exists()
             && !src("build-apk.sh").contains("modarc"));
 
         ModStore.deleteTree(root);
+        loadOrder();
         System.out.println(checks - fails + "/" + checks + " checks passed");
         if (fails > 0) System.exit(1);
     }
