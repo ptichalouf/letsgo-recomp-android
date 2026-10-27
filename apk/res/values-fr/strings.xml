@@ -101,10 +101,10 @@
     <string name="recommended">"Pilote recommandé"</string>
     <string name="refresh">"Actualiser"</string>
     <string name="res">"Résolution interne :"</string>
-    <string name="res_05">"0,5x (480p) - Performance"</string>
-    <string name="res_075">"0,75x (540p) - Équilibré"</string>
-    <string name="res_1x">"1x (720p) - Par défaut"</string>
-    <string name="res_2x">"2x (1080p) - Qualité"</string>
+    <string name="res_05">"480p - Performance"</string>
+    <string name="res_075">"540p - Équilibré"</string>
+    <string name="res_1x">"720p - Par défaut"</string>
+    <string name="res_2x">"1080p - Qualité"</string>
     <string name="retry">"Choisir un autre dossier"</string>
     <string name="rules">"Règles : "</string>
     <string name="rules_builtin">"table interne (règles GitHub illisibles)"</string>
@@ -174,4 +174,13 @@
     <string name="z_readback">"Le pilote n\'a pas pu être relu"</string>
     <string name="z_sha">"La bibliothèque ne correspond pas au sha256 du manifest.json du paquet"</string>
     <string name="z_toobig">" trop gros"</string>
+    <string name="res_900">"900p"</string>
+    <string name="res_1440">"1440p - Maximum (GPU puissant)"</string>
+    <string name="res_native">"Native de l'écran"</string>
+    <string name="res_custom">"Personnalisée (largeur x hauteur)"</string>
+    <string name="res_custom_hint">"ex. : 1440x1080"</string>
+    <string name="fmt">"Format d'image :"</string>
+    <string name="fmt_169">"16:9 du jeu (bandes noires)"</string>
+    <string name="fmt_43">"4:3 (expérimental : interface étirée)"</string>
+    <string name="fmt_fill">"Remplir l'écran (expérimental : interface étirée)"</string>
 </resources>

@@ -31,6 +31,20 @@ def _ring_counter(gen, a):
 PATCHES[0x70002d2a44] = _ring_counter
 
 
+# Image formats other than 16:9 (LARECOMP_ASPECT): the projection builders' read of the camera's field of view (+0xd0)
+# and aspect (+0xd4) goes through rt_cam_ldp (runtime/hle/camera_aspect.c), which widens or narrows them to the shape
+# of the image. With the game's 16:9 it returns the game's own values.
+def _cam_ldp(base_reg, rfov, raspect):
+    def patch(gen, a):
+        return ('{ extern void rt_cam_ldp(void *, uint64_t, int, int); rt_cam_ldp(c, c->x[%d] + 0xd0ull, %d, %d); }'
+                % (base_reg, rfov, raspect))
+    return patch
+
+
+PATCHES[0x7000645ec0] = _cam_ldp(20, 1, 0)  # ldp s1, s0, [x20, #0xd0]  (projection, f_7000645xxx)
+PATCHES[0x70006461d0] = _cam_ldp(8, 1, 0)   # ldp s1, s0, [x8, #0xd0]   (its twin)
+PATCHES[0x7000619b70] = _cam_ldp(1, 2, 1)   # ldp s2, s1, [x1, #0xd0]   (third builder)
+
 # The addresses above are Let's Go Eevee 1.0.0's main (build id below). The same instructions in the other builds with
 # address tables (found with tools/addrmap.py; runtime/fnhook.c has the runtime's hooks): gen.py moves the patches
 # there, and generates any other build (an update) without them.

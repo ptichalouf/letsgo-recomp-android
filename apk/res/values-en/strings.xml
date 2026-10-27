@@ -101,10 +101,10 @@
     <string name="recommended">"Recommended driver"</string>
     <string name="refresh">"Refresh"</string>
     <string name="res">"Internal resolution:"</string>
-    <string name="res_05">"0.5x (480p) - Performance"</string>
-    <string name="res_075">"0.75x (540p) - Balanced"</string>
-    <string name="res_1x">"1x (720p) - Default"</string>
-    <string name="res_2x">"2x (1080p) - Quality"</string>
+    <string name="res_05">"480p - Performance"</string>
+    <string name="res_075">"540p - Balanced"</string>
+    <string name="res_1x">"720p - Default"</string>
+    <string name="res_2x">"1080p - Quality"</string>
     <string name="retry">"Choose another folder"</string>
     <string name="rules">"Rules: "</string>
     <string name="rules_builtin">"built-in table (GitHub rules unreadable)"</string>
@@ -174,4 +174,13 @@
     <string name="z_readback">"The driver could not be read back"</string>
     <string name="z_sha">"The library does not match the sha256 in the package\'s manifest.json"</string>
     <string name="z_toobig">" too large"</string>
+    <string name="res_900">"900p"</string>
+    <string name="res_1440">"1440p - Maximum (strong GPU)"</string>
+    <string name="res_native">"Screen native"</string>
+    <string name="res_custom">"Custom (width x height)"</string>
+    <string name="res_custom_hint">"e.g. 1440x1080"</string>
+    <string name="fmt">"Image format:"</string>
+    <string name="fmt_169">"Game 16:9 (black bars)"</string>
+    <string name="fmt_43">"4:3 (experimental: stretched interface)"</string>
+    <string name="fmt_fill">"Fill the screen (experimental: stretched interface)"</string>
 </resources>

@@ -320,29 +320,84 @@ public class LetsGoLauncherActivity extends Activity {
         resLabel.setTextColor(Color.rgb(200, 210, 220));
         root.addView(resLabel, lp(-1, -2));
 
+        // The render HEIGHT (LARECOMP_SCALE = height / 1080, runtime/nvn/output_scale.c); the width follows the image
+        // format below. "native" = the screen's own pixels; "custom" = a width x height typed by the player (its
+        // ratio becomes the format: LetsGoActivity).
         final android.widget.Spinner resSpinner = new android.widget.Spinner(this);
-        final String[] resNames = {Txt.t("res_05", "0.5x (480p) - Performance"), Txt.t("res_075", "0.75x (540p) - Equilibrado"), Txt.t("res_1x", "1x (720p) - Padrão"), Txt.t("res_2x", "2x (1080p) - Qualidade")};
-        final String[] resValues = {"0.4444", "0.5", "0.6667", "1.0"};
+        final String[] resNames = {Txt.t("res_05", "480p - Desempenho"), Txt.t("res_075", "540p - Equilibrado"),
+                                   Txt.t("res_1x", "720p - Padrão"), Txt.t("res_900", "900p"),
+                                   Txt.t("res_2x", "1080p - Qualidade"), Txt.t("res_1440", "1440p - Máxima (GPU forte)"),
+                                   Txt.t("res_native", "Nativa da tela"),
+                                   Txt.t("res_custom", "Personalizada (largura x altura)")};
+        final String[] resValues = {"0.4444", "0.5", "0.6667", "0.8333", "1.0", "1.3333", "native", "custom"};
         android.widget.ArrayAdapter<String> resAdapter = new android.widget.ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, resNames);
         resAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         resSpinner.setAdapter(resAdapter);
-        // Load saved preference (default 1x = 720p)
-        String savedRes = getSharedPreferences("letsgo", MODE_PRIVATE).getString("resolution_scale", "0.6667");
+        final android.content.SharedPreferences prefs = getSharedPreferences("letsgo", MODE_PRIVATE);
+        // Load saved preference (default 720p)
+        String savedRes = prefs.getString("resolution_scale", "0.6667");
         for (int i = 0; i < resValues.length; i++) {
             if (resValues[i].equals(savedRes)) {
                 resSpinner.setSelection(i);
                 break;
             }
         }
-        resSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        root.addView(resSpinner, lp(-1, -2));
+
+        final android.widget.EditText customRes = new android.widget.EditText(this);
+        customRes.setSingleLine(true);
+        customRes.setHint(Txt.t("res_custom_hint", "ex.: 1440x1080"));
+        customRes.setText(prefs.getString("custom_resolution", "1440x1080"));
+        customRes.setTextColor(Color.WHITE);
+        customRes.setHintTextColor(Color.rgb(120, 130, 140));
+        customRes.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        customRes.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            public void afterTextChanged(android.text.Editable s) {
+                prefs.edit().putString("custom_resolution", s.toString().trim()).apply();
+            }
+        });
+        customRes.setVisibility("custom".equals(savedRes) ? android.view.View.VISIBLE : android.view.View.GONE);
+        root.addView(customRes, lp(-1, -2));
+
+        // Image format: the game's 16:9 with black bars, another fixed shape, or the screen's own shape. Any shape
+        // but 16:9 changes the game camera's field of view (runtime/hle/camera_aspect.c): the 3D comes out right, but
+        // the game draws its 2D interface into the same full-screen image, so it is stretched to the new shape (measured
+        // on the Fold4: dialogue box 1.48x taller in "fill"). Experimental until the interface is kept in a 16:9 box.
+        TextView fmtLabel = new TextView(this);
+        fmtLabel.setText(Txt.t("fmt", "Formato da imagem:"));
+        fmtLabel.setTextColor(Color.rgb(200, 210, 220));
+        root.addView(fmtLabel, lp(-1, -2));
+        final android.widget.Spinner fmtSpinner = new android.widget.Spinner(this);
+        final String[] fmtNames = {Txt.t("fmt_169", "16:9 do jogo (faixas pretas)"), Txt.t("fmt_43", "4:3 (experimental: interface esticada)"),
+                                   Txt.t("fmt_fill", "Preencher a tela (experimental: interface esticada)")};
+        final String[] fmtValues = {"", "4:3", "fill"};
+        android.widget.ArrayAdapter<String> fmtAdapter = new android.widget.ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, fmtNames);
+        fmtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        fmtSpinner.setAdapter(fmtAdapter);
+        String savedFmt = prefs.getString("aspect", "");
+        for (int i = 0; i < fmtValues.length; i++) if (fmtValues[i].equals(savedFmt)) fmtSpinner.setSelection(i);
+        fmtSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
-                getSharedPreferences("letsgo", MODE_PRIVATE).edit()
-                        .putString("resolution_scale", resValues[position]).apply();
+                prefs.edit().putString("aspect", fmtValues[position]).apply();
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
-        root.addView(resSpinner, lp(-1, -2));
+        fmtSpinner.setEnabled(!"custom".equals(savedRes));  // (a typed width x height carries its own shape)
+        root.addView(fmtSpinner, lp(-1, -2));
+
+        resSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                prefs.edit().putString("resolution_scale", resValues[position]).apply();
+                boolean custom = "custom".equals(resValues[position]);
+                customRes.setVisibility(custom ? android.view.View.VISIBLE : android.view.View.GONE);
+                fmtSpinner.setEnabled(!custom);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
 
         // Game language: the game's RomFS has every language's texts (bin/message/<language>/: English, French,
         // Spanish...), and a dump from any region is the same game. The runtime tells the game larecomp.ini's

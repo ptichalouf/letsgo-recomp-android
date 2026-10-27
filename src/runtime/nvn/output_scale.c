@@ -10,6 +10,7 @@
 // Test overrides: LARECOMP_SCALE=<f> (render height = 1080 x f), LARECOMP_WIDE_TEST=<f> (forced shape).
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../hle.h"
 #include "../settings.h"
@@ -68,22 +69,57 @@ static void dyn_update(double now, double gpu_ms, double target_ms) {
 
 double output_scale_dynamic_factor(void) { return g_dyn; }
 
+// Image format (LARECOMP_ASPECT, set by the Android launcher): unset or "16:9" = the game's own 16:9, fitted in the
+// window with black bars; "fill" = the window's own shape; "<w>:<h>" or "<w>x<h>" = that shape, fitted in the window.
+// Any shape but 16:9 needs the camera hook (rt_cam_ldp, tools/patches.py: the projection gets the new aspect and,
+// for an image narrower than 16:9, a taller field of view): until the game's camera has gone through it (another
+// build of the game, without the patch) the image stays 16:9 instead of coming out stretched.
+static double g_aspect = -1;  // wanted width/height, 0 = 16:9, -2 = fill the window
+static volatile int g_cam_seen;
+static double g_cam_shape = 1.0;
+double output_scale_camera_shape(void) { return g_cam_shape; }
+void output_scale_camera_seen(void) { g_cam_seen = 1; }
+
+static void aspect_load(void) {
+    const char *e = getenv("LARECOMP_ASPECT");
+    g_aspect = 0;
+    if (!e || !*e) return;
+    if (!strcmp(e, "fill")) { g_aspect = -2; return; }
+    double w = atof(e), h = 0;
+    const char *sep = strpbrk(e, ":xX");
+    if (sep) h = atof(sep + 1);
+    if (w > 0 && h > 0 && w / h > 0.2 && w / h < 5.0 && fabs(w / h - 16.0 / 9.0) > 0.005) g_aspect = w / h;
+    LOG("[res] format %s -> %s\n", e, g_aspect > 0 ? "fixed shape" : "16:9");
+}
+
 void output_scale(double dw, double dh, bool reshape_allowed, double now, double gpu_ms, OutScale *o) {
     double fit = fmin(dw / 1920.0, dh / 1080.0);
     static double forced = -1, wide_test = -1;
-    if (forced < 0) forced = getenv("LARECOMP_SCALE") ? atof(getenv("LARECOMP_SCALE")) : 0;
+    static int native = -1;
+    if (native < 0) {
+        const char *e = getenv("LARECOMP_SCALE");
+        native = e && !strcmp(e, "native");  // render at the screen's own pixels (Match display), whatever the shape
+        forced = e && !native ? atof(e) : 0;
+    }
     if (wide_test < 0) wide_test = getenv("LARECOMP_WIDE_TEST") ? atof(getenv("LARECOMP_WIDE_TEST")) : 0;
-    double shape = wide_test > 0 ? wide_test : (dw / dh) / (16.0 / 9.0);
-    bool reshape = reshape_allowed && fabs(shape - 1.0) > 0.005;
+    if (g_aspect == -1) aspect_load();
+    double want = g_aspect == -2 ? dw / dh : g_aspect > 0 ? g_aspect : 16.0 / 9.0;
+    double shape = wide_test > 0 ? wide_test : want / (16.0 / 9.0);
+    bool reshape = (reshape_allowed || (g_aspect != 0 && g_cam_seen)) && fabs(shape - 1.0) > 0.005;
     if (!reshape) shape = 1.0;
+    g_cam_shape = shape;
+    // the box the image goes in: the wanted shape fitted in the window (all of it for "fill")
+    double f2 = fmin(dw / (1920.0 * shape), dh / 1080.0);
+    double bw = 1920.0 * shape * f2, bh = 1080.0 * f2;
     // render height in units of the Switch's 1080 lines
     double h;
     int mode = g_settings.res_mode;
-    if (forced > 0) h = forced;
+    if (native) h = bh / 1080.0;
+    else if (forced > 0) h = forced;
     else if (g_settings.res_height > 0) h = g_settings.res_height / 1080.0;  // (the launcher's choice)
     else if (mode >= 1 && mode <= 8) h = mode;
     else {
-        h = reshape ? dh / 1080.0 : fit;  // Match display
+        h = reshape ? bh / 1080.0 : fit;  // Match display
         if (mode == RES_DYNAMIC) {
             extern bool fps60_enabled(void), fps60_world(void), fps60_menu(void);
             bool at_60 = fps60_enabled() && (fps60_world() || fps60_menu());
@@ -100,7 +136,7 @@ void output_scale(double dw, double dh, bool reshape_allowed, double now, double
     if (cap < 1.0) { sx *= cap; sy *= cap; }
     o->sx = sx; o->sy = sy; o->shape = shape;
     // where the image goes in the window: fills it when reshaped, else a fitted 16:9 box
-    if (reshape) { o->vw = dw; o->vh = dh; }
+    if (reshape) { o->vw = bw; o->vh = bh; }
     else { o->vw = 1920.0 * fit; o->vh = 1080.0 * fit; }
     if (wide_test > 0) {
         double f2 = fmin(dw / (1920.0 * wide_test), dh / 1080.0);

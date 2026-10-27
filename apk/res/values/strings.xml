@@ -101,10 +101,10 @@
     <string name="recommended">"Driver recomendado"</string>
     <string name="refresh">"Atualizar"</string>
     <string name="res">"Resolução interna:"</string>
-    <string name="res_05">"0.5x (480p) - Performance"</string>
-    <string name="res_075">"0.75x (540p) - Equilibrado"</string>
-    <string name="res_1x">"1x (720p) - Padrão"</string>
-    <string name="res_2x">"2x (1080p) - Qualidade"</string>
+    <string name="res_05">"480p - Desempenho"</string>
+    <string name="res_075">"540p - Equilibrado"</string>
+    <string name="res_1x">"720p - Padrão"</string>
+    <string name="res_2x">"1080p - Qualidade"</string>
     <string name="retry">"Escolher outra pasta"</string>
     <string name="rules">"Regras: "</string>
     <string name="rules_builtin">"tabela interna (regras do GitHub ilegíveis)"</string>
@@ -174,4 +174,13 @@
     <string name="z_readback">"O driver não pôde ser lido de volta"</string>
     <string name="z_sha">"A biblioteca não confere com o sha256 do manifest.json do pacote"</string>
     <string name="z_toobig">" grande demais"</string>
+    <string name="res_900">"900p"</string>
+    <string name="res_1440">"1440p - Máxima (GPU forte)"</string>
+    <string name="res_native">"Nativa da tela"</string>
+    <string name="res_custom">"Personalizada (largura x altura)"</string>
+    <string name="res_custom_hint">"ex.: 1440x1080"</string>
+    <string name="fmt">"Formato da imagem:"</string>
+    <string name="fmt_169">"16:9 do jogo (faixas pretas)"</string>
+    <string name="fmt_43">"4:3 (experimental: interface esticada)"</string>
+    <string name="fmt_fill">"Preencher a tela (experimental: interface esticada)"</string>
 </resources>

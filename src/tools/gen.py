@@ -511,7 +511,8 @@ def main():
     if args.name == 'main' and bid != EEVEE_100_BUILD:
         # The instruction patches are written for Let's Go Eevee 1.0.0's main: moved to the same instructions of a
         # build with an address table (tools/patches.py), left out of any other (another update has other code there).
-        moved = {BUILD_ADDRS[bid][a]: fn for a, fn in PATCHES.items()} if bid in BUILD_ADDRS else {}
+        moved = {BUILD_ADDRS[bid][a]: fn for a, fn in PATCHES.items() if a in BUILD_ADDRS.get(bid, {})}
+        # (a patch without an address in that build is left out: the camera's one keeps that build's image at 16:9)
         print(f'{args.name}: build {bid}, ' + (f'{len(moved)} instruction patches moved' if moved else 'no instruction patches'))
         PATCHES.clear()
         PATCHES.update(moved)

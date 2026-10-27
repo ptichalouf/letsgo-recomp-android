@@ -30,9 +30,26 @@ public class LetsGoActivity extends SDLActivity {
         setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         // Resolution scale (user-selectable, emulator-style): set before native loads
         try {
-            String scale = getSharedPreferences("letsgo", MODE_PRIVATE).getString("resolution_scale", "0.6667");
+            android.content.SharedPreferences p = getSharedPreferences("letsgo", MODE_PRIVATE);
+            String scale = p.getString("resolution_scale", "0.6667");
+            String aspect = p.getString("aspect", "");
+            if ("custom".equals(scale)) {
+                // a width x height typed in the launcher ("1440x1080", "1440 x 1080", "1440:1080"): its height gives the
+                // scale, its ratio the image format (runtime/nvn/output_scale.c)
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\s*(\\d{3,5})\\s*[xX×:*]\\s*(\\d{3,5})\\s*$")
+                        .matcher(p.getString("custom_resolution", "1440x1080"));  // (the launcher field's default, saved only once edited)
+                if (m.matches() && Integer.parseInt(m.group(2)) >= 240 && Integer.parseInt(m.group(2)) <= 4320) {
+                    scale = String.format(java.util.Locale.ROOT, "%.4f", Integer.parseInt(m.group(2)) / 1080.0);
+                    aspect = m.group(1) + ":" + m.group(2);
+                } else {
+                    scale = "0.6667";
+                    android.util.Log.w("lasrecomp", "[res] custom resolution unreadable, 720p");
+                }
+            }
             android.system.Os.setenv("LARECOMP_SCALE", scale, true);
-            android.util.Log.i("lasrecomp", "[res] scale: " + scale);
+            if (aspect.isEmpty()) android.system.Os.unsetenv("LARECOMP_ASPECT");
+            else android.system.Os.setenv("LARECOMP_ASPECT", aspect, true);
+            android.util.Log.i("lasrecomp", "[res] scale: " + scale + " format: " + (aspect.isEmpty() ? "16:9" : aspect));
         } catch (Exception e) {
             android.util.Log.w("lasrecomp", "[res] scale setup: " + e);
         }
