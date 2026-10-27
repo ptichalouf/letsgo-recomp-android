@@ -23,6 +23,13 @@ static bool is_dir(const char *p) {
     return !stat(p, &sb) && S_ISDIR(sb.st_mode);
 }
 
+// The mods folder: mods/ in the data root, or LARECOMP_MODS_DIR (Android: the app's own storage, so the player's game
+// folder is only read).
+static const char *mods_dir(void) {
+    const char *e = getenv("LARECOMP_MODS_DIR");
+    return e && *e ? e : "mods";
+}
+
 // The romfs/ folder inside dir, up to `depth` levels down (a download unpacked with its own folders around it). Packs
 // made for both games (atmosphere/titles/<Pikachu>/ and <Eevee>/) are searched under the set-up game's title id first.
 #define EEVEE_TITLE "0100187003A36000"
@@ -51,13 +58,13 @@ static bool find_romfs(const char *dir, int depth, char *out, size_t cap) {
 }
 
 int mods_list(char names[][128], int max) {
-    DIR *d = opendir("mods");
+    DIR *d = opendir(mods_dir());
     if (!d) return 0;
     int n = 0;
     char p[1024], r[1024];
     for (struct dirent *e; n < max && (e = readdir(d));) {
         if (e->d_name[0] == '.') continue;
-        snprintf(p, sizeof p, "mods/%s", e->d_name);
+        snprintf(p, sizeof p, "%s/%s", mods_dir(), e->d_name);
         if (is_dir(p) && find_romfs(p, 4, r, sizeof r)) snprintf(names[n++], 128, "%s", e->d_name);
     }
     closedir(d);
@@ -71,10 +78,10 @@ static const char *romfs_of(const char *name) {
     if (strcmp(name, cached_name)) {
         snprintf(cached_name, sizeof cached_name, "%s", name);
         char p[1024];
-        snprintf(p, sizeof p, "mods/%s", name);
+        snprintf(p, sizeof p, "%s/%s", mods_dir(), name);
         ok = find_romfs(p, 4, dir, sizeof dir);
         if (ok) LOG("[mods] %s: %s\n", name, dir);
-        else LOG("[mods] %s: no romfs/ folder found under mods/%s\n", name, name);
+        else LOG("[mods] %s: no romfs/ folder found under %s\n", name, p);
     }
     return ok ? dir : NULL;
 }
@@ -153,26 +160,29 @@ static void *install_thread(void *arg) {
     if (dot && !is_dir(src)) *dot = 0;
     while (n && name[strlen(name) - 1] == ' ') name[strlen(name) - 1] = 0;
     if (!name[0]) snprintf(name, sizeof name, "mod");
-    mkdir("mods", 0755);
+    mkdir(mods_dir(), 0755);
+    char work[1100], work_log[1200];
+    snprintf(work, sizeof work, "%s/.install", mods_dir());
+    snprintf(work_log, sizeof work_log, "%s.log", work);
     const char *root = src;
     if (!is_dir(src)) {  // an archive: Windows' own tar (libarchive: .zip, .rar, .7z) into mods/.install
-        rm_tree("mods/.install");
-        mkdir("mods/.install", 0755);
+        rm_tree(work);
+        mkdir(work, 0755);
         char tar[600];
         const char *sys = getenv("SystemRoot");
         snprintf(tar, sizeof tar, "%s\\System32\\tar.exe", sys ? sys : "C:\\Windows");
-        const char *argv[] = {tar, "-xf", src, "-C", "mods/.install", NULL};
-        PlatProc p = plat_spawn(argv, "mods/.install.log", false);
+        const char *argv[] = {tar, "-xf", src, "-C", work, NULL};
+        PlatProc p = plat_spawn(argv, work_log, false);
         int r = p ? plat_proc_wait(p, true) : -1;
-        remove("mods/.install.log");
+        remove(work_log);
         if (r != 0) { LOG("[mods] couldn't unpack %s (tar %d)\n", src, r); g_install_state = MOD_INSTALL_FAIL_UNPACK; goto done; }
-        root = "mods/.install";
+        root = work;
     }
     {
         char romfs[1024];
         if (!find_romfs(root, 6, romfs, sizeof romfs)) { g_install_state = MOD_INSTALL_FAIL_NOT_MOD; goto done; }
-        char dst[300];
-        snprintf(dst, sizeof dst, "mods/%s", name);
+        char dst[1300];
+        snprintf(dst, sizeof dst, "%s/%s", mods_dir(), name);
         if (is_dir(dst)) rm_tree(dst);
         mkdir(dst, 0755);
         strlcat(dst, "/romfs", sizeof dst);
@@ -182,7 +192,7 @@ static void *install_thread(void *arg) {
         g_install_state = MOD_INSTALL_DONE;
     }
 done:
-    rm_tree("mods/.install");
+    rm_tree(work);
     return NULL;
 }
 

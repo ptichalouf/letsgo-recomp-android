@@ -47,6 +47,8 @@ they expect these under `deps/`. Builds that ship them must carry these notices 
 | **glslang** | static, inside `liblasrecomp.so` | BSD-3-Clause / BSD-2-Clause / MIT / Apache 2.0 (see file) | `LICENSES/glslang-LICENSE.txt` |
 | **libadrenotools** + **liblinkernsbypass** | `libadrenotools.so` (shared) | BSD-2-Clause | `LICENSES/libadrenotools-BSD-2-Clause.txt`, `LICENSES/liblinkernsbypass-BSD-2-Clause.txt` |
 | **LLVM libc++** (`libc++_shared.so` from the Android NDK 28.2.13676358) | shared | Apache 2.0 with LLVM Exceptions | `LICENSES/LLVM-libcxx-Apache-2.0-WITH-LLVM-exception.txt` |
+| **libarchive** 3.8.1 (zip, rar, rar5 and 7zip readers; `build-modunpack.sh`) | static, inside `libmodunpack.so` | BSD-2-Clause (see file) | `LICENSES/libarchive-BSD-2-Clause.txt` |
+| **liblzma** (XZ Utils 5.8.1; `build-modunpack.sh`) | static, inside `libmodunpack.so` | 0BSD | `LICENSES/liblzma-0BSD.txt` |
 
 ## 4. Documentation and references
 
