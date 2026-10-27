@@ -17,8 +17,8 @@ import android.view.ViewGroup;
 
 // Minimal touch controls (the default). The game image is a 16:9 picture centred in the window (black bars around
 // it), so everything that stays on screen lives in those bars and never covers the picture:
-//   - left: a floating stick (touch anywhere in the zone, slide): walking AND menu cursor (the game reads the stick's
-//     directions as d-pad buttons, so no d-pad is needed);
+//   - left: a FIXED stick (always drawn at the same place, thin ring + small knob; touch it and slide): walking AND
+//     menu cursor (the game reads the stick's directions as d-pad buttons, so no d-pad is needed);
 //   - right: A (talk / confirm / throw), B (cancel), X (main menu) and "..." which opens a drawer with the rest:
 //     Y (options / box / moves), L, R (move Pokemon or items), - and + (buddy, Pokedex), FPS counter, LOG.
 // The drawer closes by itself a few seconds after its last use. Everything else on screen is the game's own touch
@@ -51,9 +51,10 @@ public class TouchControls extends ViewGroup {
     private boolean drawerOpen, showFps;
     private long lastTouch = SystemClock.uptimeMillis(), lastDrawer;
     private String fpsText = "";
-    // stick: zone (in this view's coordinates), idle hint centre, radius, live base / knob
+    // stick: touch zone (in this view's coordinates), CENTRED on the fixed stick centre (stickX, stickY); radius = full
+    // tilt; knob = where the knob is drawn while held (the base never moves)
     private final RectF zone = new RectF();
-    private float hintX, hintY, radius, baseX, baseY, knobX, knobY;
+    private float stickX, stickY, radius, knobX, knobY;
     private boolean stickActive;
     private float fpsX, fpsY;
 
@@ -220,13 +221,24 @@ public class TouchControls extends ViewGroup {
                 disc[DRAWER[k]].set(x - d / 2, y - d / 2, x + d / 2, y + d / 2);
             }
         }
-        // stick zone: left half of the bottom bar, or the whole left bar (below the drawer while it is open)
+        // stick: a fixed centre in the left part of the bottom bar, or low in the left bar, always below where the drawer
+        // opens (so opening the drawer never moves it). Its touch zone is a box CENTRED on that centre, a little wider
+        // than the ring (a thumb landing just outside the ring already walks in the right direction), kept inside the
+        // bar and off the drawer. Recomputed on every measure: folding / unfolding re-centres it for the new screen.
         radius = Math.min(56 * dp, t * 0.42f);
-        if (!side) zone.set(0, h - t, w * 0.45f, h);
-        else zone.set(0, drawerOpen ? disc[DRAWER[DRAWER.length - 1]].bottom + gap : 0, t, h);
-        hintX = side ? t / 2 : m + radius + 12 * dp;
-        hintY = side ? h - t * 0.95f : h - t / 2;
-        if (side) hintY = Math.min(Math.max(hintY, zone.top + radius + 4 * dp), h - radius - 4 * dp);
+        float reach = radius * 1.35f, top;
+        if (!side) {
+            stickX = m + radius + 12 * dp;
+            stickY = h - t / 2;
+            top = h - t;
+        } else {
+            top = disc[DRAWER[DRAWER.length - 1]].bottom + gap;
+            stickX = t / 2;
+            stickY = Math.min(Math.max(h - t * 0.95f, top + radius + 4 * dp), h - radius - 4 * dp);
+        }
+        float hw = Math.min(reach, Math.min(stickX, side ? t - stickX : reach));
+        float hh = Math.min(reach, Math.min(h - stickY, Math.max(radius, stickY - top)));
+        zone.set(stickX - hw, stickY - hh, stickX + hw, stickY + hh);
         fpsX = w - 8 * dp - fpsPaint.measureText("60 fps  33 ms");
         fpsY = side ? 22 * dp : t / 2;
     }
@@ -253,18 +265,21 @@ public class TouchControls extends ViewGroup {
             text.setTextSize(i >= FPS ? r.width() * 0.26f : r.width() * 0.42f);
             c.drawText(LABEL[i], cx, cy - (text.ascent() + text.descent()) / 2, text);
         }
-        ring.setStrokeWidth(2 * dp);
-        if (stickActive) {
-            ring.setColor(Color.argb(120, 255, 255, 255));
-            c.drawCircle(baseX, baseY, radius, ring);
-            fill.setColor(Color.argb(110, 255, 255, 255));
-            c.drawCircle(knobX, knobY, radius * 0.42f, fill);
-        } else {
-            ring.setColor(Color.argb((int) (60 * k), 255, 255, 255));
-            c.drawCircle(hintX, hintY, radius, ring);
-            fill.setColor(Color.argb((int) (34 * k), 255, 255, 255));
-            c.drawCircle(hintX, hintY, radius * 0.42f, fill);
-        }
+        // stick: always drawn at its fixed centre. A thin white ring over a thin dark halo (readable on black bars, grass
+        // or tarmac alike) and a small knob (faint fill + ring); never a filled disc. Idle dimming stops at 80 %.
+        float ks = stickActive ? 1f : Math.max(k, 0.8f), kr = radius * 0.42f;
+        float kx = stickActive ? knobX : stickX, ky = stickActive ? knobY : stickY;
+        ring.setStrokeWidth(3.5f * dp);
+        ring.setColor(Color.argb((int) (70 * ks), 0, 0, 0));
+        c.drawCircle(stickX, stickY, radius, ring);
+        c.drawCircle(kx, ky, kr, ring);
+        ring.setStrokeWidth(1.5f * dp);
+        ring.setColor(Color.argb((int) ((stickActive ? 190 : 150) * ks), 255, 255, 255));
+        c.drawCircle(stickX, stickY, radius, ring);
+        fill.setColor(Color.argb(stickActive ? 110 : (int) (40 * ks), 255, 255, 255));
+        c.drawCircle(kx, ky, kr, fill);
+        ring.setColor(Color.argb((int) ((stickActive ? 220 : 160) * ks), 255, 255, 255));
+        c.drawCircle(kx, ky, kr, ring);
         if (showFps && fpsText.length() > 0) c.drawText(fpsText, fpsX, fpsY, fpsPaint);
     }
 
@@ -280,34 +295,34 @@ public class TouchControls extends ViewGroup {
         }
     }
 
-    // the stick's zone: the stick appears where the thumb lands, the knob follows it (analog, full tilt at the ring)
+    // a fold / unfold changes the window: let go of everything (the stick is re-centred by the next measure)
+    @Override protected void onSizeChanged(int w, int h, int ow, int oh) { super.onSizeChanged(w, h, ow, oh); releaseAll(); }
+
+    // the stick's zone: the base stays at the fixed centre, the knob follows the thumb up to the ring (analog, full tilt
+    // at the ring and beyond; the touch-down point already counts, so a press on the ring walks at once)
     private class Stick extends View {
         int pointer = -1;
         Stick() { super(TouchControls.this.getContext()); }
+        private void track(float x, float y) {
+            float dx = x - stickX, dy = y - stickY, len = (float) Math.hypot(dx, dy);
+            if (len > radius) { dx *= radius / len; dy *= radius / len; len = radius; }
+            knobX = stickX + dx; knobY = stickY + dy;
+            float dead = radius * 0.18f;
+            if (len < dead) setStick(0, 0);
+            else { float s = (len - dead) / (radius - dead) / len; setStick(dx * s, dy * s); }
+            lastTouch = SystemClock.uptimeMillis();
+        }
         @Override public boolean onTouchEvent(MotionEvent e) {
             int a = e.getActionMasked();
             float ox = getLeft(), oy = getTop();
             if (a == MotionEvent.ACTION_DOWN) {
                 pointer = e.getPointerId(0);
-                baseX = knobX = e.getX() + ox;
-                baseY = knobY = e.getY() + oy;
                 stickActive = true;
-                lastTouch = SystemClock.uptimeMillis();
-                setStick(0, 0);
+                track(e.getX() + ox, e.getY() + oy);
             } else if (a == MotionEvent.ACTION_MOVE && pointer >= 0) {
                 int p = e.findPointerIndex(pointer);
                 if (p < 0) return true;
-                float dx = e.getX(p) + ox - baseX, dy = e.getY(p) + oy - baseY;
-                float len = (float) Math.hypot(dx, dy);
-                if (len > radius) {  // (dragging past the ring pulls the stick along: no dead end)
-                    baseX += dx * (1 - radius / len); baseY += dy * (1 - radius / len);
-                    dx *= radius / len; dy *= radius / len; len = radius;
-                }
-                knobX = baseX + dx; knobY = baseY + dy;
-                float dead = radius * 0.18f;
-                if (len < dead) setStick(0, 0);
-                else { float s = (len - dead) / (radius - dead) / len; setStick(dx * s, dy * s); }
-                lastTouch = SystemClock.uptimeMillis();
+                track(e.getX(p) + ox, e.getY(p) + oy);
             } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
                 pointer = -1;
                 stickActive = false;
