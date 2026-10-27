@@ -33,6 +33,9 @@ O runtime precisa destas bibliotecas pré-compiladas para Android arm64:
 - **shaderc** (compilação de shaders em runtime)
 - **adrenotools** (driver Turnip customizado — opcional, ver ISSUES.md)
 - **VMA** (Vulkan Memory Allocator)
+- **libarchive 3.8.1** e **xz 5.8.1** (tarballs `deps/libarchive-3.8.1.tar.xz`, `deps/xz-5.8.1.tar.xz`, SHA-256
+  conferidos): `./build-modunpack.sh` gera `build/apk-lib/libmodunpack.so` (instalação de mods no aparelho,
+  `apk/modunpack/modunpack.c`), empacotado pelo `build-apk.sh`.
 
 Compile-as para arm64 ou obtenha builds compatíveis antes da etapa 2.
 

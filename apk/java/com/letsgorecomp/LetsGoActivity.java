@@ -123,6 +123,12 @@ public class LetsGoActivity extends SDLActivity {
         } catch (Exception e) {
             android.util.Log.w("lasrecomp", "[gpu] driver setup: " + e);
         }
+        // Mods live in the app's own storage, not in the player's game folder (runtime/mods.c mods_dir; ModUnpack).
+        try {
+            android.system.Os.setenv("LARECOMP_MODS_DIR", ModUnpack.dir(this).getAbsolutePath(), true);
+        } catch (Exception e) {
+            android.util.Log.w("lasrecomp", "[mods] LARECOMP_MODS_DIR: " + e);
+        }
         System.loadLibrary("lasrecomp");
         // The user-picked game folder (via the launcher), or the app's files
         // dir as a fallback. The native runtime reads LARECOMP_DATA_ROOT.
