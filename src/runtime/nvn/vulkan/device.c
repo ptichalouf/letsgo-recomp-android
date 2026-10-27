@@ -1686,9 +1686,22 @@ void backend_clear_window(void) {
 
 int ui_run(void) {
     ui_window_init();
+#ifdef __ANDROID__
+    // SDL 3.4.18's poll sentinel wakes Android_PumpEvents on every wait-loop
+    // iteration, even though WaitEvent ignores that sentinel: an idle self-wake.
+    // ui_run only waits; restore polling semantics before returning to reboot_idle.
+    bool poll_sentinel = SDL_EventEnabled(SDL_EVENT_POLL_SENTINEL);
+    SDL_SetEventEnabled(SDL_EVENT_POLL_SENTINEL, false);
+#endif
     atomic_store(&ui_ready, true);
     for (;;) {
-        if (rt_reboot_requested()) return rt_reboot_requested();  // (runtime/main.c tears the game down)
+        int reboot = rt_reboot_requested();
+        if (reboot) {  // (runtime/main.c tears the game down)
+#ifdef __ANDROID__
+            SDL_SetEventEnabled(SDL_EVENT_POLL_SENTINEL, poll_sentinel);
+#endif
+            return reboot;
+        }
         SDL_Event e;
         while (SDL_WaitEventTimeout(&e, 16)) {
             if (e.type == SDL_EVENT_QUIT) {
