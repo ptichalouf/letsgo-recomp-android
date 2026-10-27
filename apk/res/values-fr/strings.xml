@@ -28,6 +28,7 @@
     <string name="cancel">"Annuler"</string>
     <string name="capture_on">"Capture activée !"</string>
     <string name="cfg">"Paramètres"</string>
+    <string name="cfg_jump">"Paramètres ↓"</string>
     <string name="close">"Fermer"</string>
     <string name="detecting">"Détection de l\'appareil…"</string>
     <string name="device">"Appareil : "</string>
