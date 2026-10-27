@@ -8,6 +8,10 @@
 //   Dynamic        Match display, lowered in steps while the GPU can't hold 60 fps and raised again when it can
 //                  (each change reallocates the render targets: a short hitch, so it changes rarely, with hysteresis)
 // Test overrides: LARECOMP_SCALE=<f> (render height = 1080 x f), LARECOMP_WIDE_TEST=<f> (forced shape).
+// Image position (LARECOMP_VALIGN, or the Android property debug.larecomp.valign): unset / "center" = centred in the
+// window (the default, unchanged); "top" = the box sits against the top edge, the band below is left to the
+// controls (unfolded inner screen: game on the upper part). Only the vertical origin moves: size and scale are the
+// same, and the touch screen follows (g_present_rect, runtime/hle/input.c, is set from vx/vy/vw/vh).
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +19,9 @@
 #include "../hle.h"
 #include "../settings.h"
 #include "output_scale.h"
+#ifdef __ANDROID__
+#include <sys/system_properties.h>
+#endif
 
 #define MAX_TEX 16384.0
 
@@ -92,6 +99,22 @@ static void aspect_load(void) {
     LOG("[res] format %s -> %s\n", e, g_aspect > 0 ? "fixed shape" : "16:9");
 }
 
+// Vertical origin of the image box: 0 = centred (default), 1 = top. Read once (a launch setting).
+static int g_valign = -1;
+static int valign_parse(const char *e) { return e && !strcmp(e, "top") ? 1 : 0; }
+int output_scale_valign(void) {
+    if (g_valign < 0) {
+        const char *e = getenv("LARECOMP_VALIGN");
+#ifdef __ANDROID__
+        char prop[PROP_VALUE_MAX] = "";
+        if ((!e || !*e) && __system_property_get("debug.larecomp.valign", prop) > 0) e = prop;
+#endif
+        g_valign = valign_parse(e);
+        if (e && *e) LOG("[res] position %s -> %s\n", e, g_valign ? "top" : "centre");
+    }
+    return g_valign;
+}
+
 void output_scale(double dw, double dh, bool reshape_allowed, double now, double gpu_ms, OutScale *o) {
     double fit = fmin(dw / 1920.0, dh / 1080.0);
     static double forced = -1, wide_test = -1;
@@ -143,4 +166,5 @@ void output_scale(double dw, double dh, bool reshape_allowed, double now, double
         o->vw = 1920.0 * wide_test * f2; o->vh = 1080.0 * f2;
     }
     o->vx = (dw - o->vw) / 2; o->vy = (dh - o->vh) / 2;
+    if (output_scale_valign() == 1) o->vy = 0;  // (top: the free band is all below the image)
 }
