@@ -28,6 +28,12 @@ Settings g_settings = {
     .render_thread = true,
     .vertex_read = VREAD_AUTO,
     .upscaler = UPSCALE_SHARP,
+    .profile_world_height = 720,
+    .profile_battle_height = 1080,
+    .profile_world_smaa = false,
+    .profile_battle_smaa = false,
+    .profile_world_aspect = PASP_GAME,
+    .profile_battle_aspect = PASP_GAME,
 #ifdef __ANDROID__
     .antialias = AA_OFF,  // Android: SMAA costs 6 fullscreen passes, too heavy for mobile GPUs
 #else
@@ -37,9 +43,23 @@ Settings g_settings = {
 
 // Unknown keys (an older larecomp.ini: Link's Awakening's options from LAS Recomp) are ignored, and dropped at the
 // next save.
+// Cold profile requests only: the renderer has no prewarm/size-residency contract yet. Refuse live switching rather
+// than promise a hitch-free change: SMAA pipelines are lazy, scaled images reallocate and aspect is cached at boot.
+// Never mutate the shared settings here (the render worker may still be using the previous frame).
+bool settings_profiles_rejected(void) { return true; }
+void settings_profile_apply(void) {
+    static int last = -1;
+    RtScene scene = fps60_profile_scene();
+    if ((int)scene == last) return;
+    last = scene;
+    LOG("[profiles] scene=%s requested=%s switch=refused reason=renderer-not-prewarmed\n",
+        scene == RT_SCENE_WORLD ? "world" : scene == RT_SCENE_BATTLE ? "battle/capture" : "menu/loading",
+        scene == RT_SCENE_WORLD ? "world" : "battle-menus");
+}
+
 static void parse_line(const char *line) {
     char key[64];
-    char val[128];
+    char val[128] = {0};
     if (sscanf(line, " %63[^= ] = %127[^\n]", key, val) < 1) return;
     if (!strcmp(key, "game_lang") || !strcmp(key, "mod")) {  // (may be empty)
         if (sscanf(line, " %63[^= ] = %127[^\n]", key, val) != 2) val[0] = 0;
@@ -69,6 +89,12 @@ static void parse_line(const char *line) {
     else if (!strcmp(key, "vertex_read")) g_settings.vertex_read = !strcmp(val, "direct") ? VREAD_DIRECT : !strcmp(val, "copy") ? VREAD_COPY : VREAD_AUTO;
     else if (!strcmp(key, "dpad_move")) g_settings.dpad_move = atoi(val) != 0;
     else if (!strcmp(key, "wild_battle")) g_settings.wild_battle = atoi(val) != 0;
+    else if (!strcmp(key, "profile_world_height")) g_settings.profile_world_height = atoi(val) >= 360 && atoi(val) <= 4320 ? atoi(val) : 0;
+    else if (!strcmp(key, "profile_battle_height")) g_settings.profile_battle_height = atoi(val) >= 360 && atoi(val) <= 4320 ? atoi(val) : 0;
+    else if (!strcmp(key, "profile_world_smaa")) g_settings.profile_world_smaa = atoi(val) != 0;
+    else if (!strcmp(key, "profile_battle_smaa")) g_settings.profile_battle_smaa = atoi(val) != 0;
+    else if (!strcmp(key, "profile_world_aspect")) g_settings.profile_world_aspect = atoi(val) == PASP_43 ? PASP_43 : atoi(val) == PASP_FILL ? PASP_FILL : PASP_GAME;
+    else if (!strcmp(key, "profile_battle_aspect")) g_settings.profile_battle_aspect = atoi(val) == PASP_43 ? PASP_43 : atoi(val) == PASP_FILL ? PASP_FILL : PASP_GAME;
     else bind_settings_load(key, val);  // bind_pad_* / bind_key_*: runtime/hle/bindings.c
 }
 
@@ -133,6 +159,12 @@ void settings_save(void) {
     fprintf(f, "vertex_read = %s\n", g_settings.vertex_read == VREAD_DIRECT ? "direct" : g_settings.vertex_read == VREAD_COPY ? "copy" : "auto");
     fprintf(f, "dpad_move = %d\n", g_settings.dpad_move);
     fprintf(f, "wild_battle = %d\n", g_settings.wild_battle);
+    fprintf(f, "profile_world_height = %d\n", g_settings.profile_world_height);
+    fprintf(f, "profile_battle_height = %d\n", g_settings.profile_battle_height);
+    fprintf(f, "profile_world_smaa = %d\n", g_settings.profile_world_smaa);
+    fprintf(f, "profile_battle_smaa = %d\n", g_settings.profile_battle_smaa);
+    fprintf(f, "profile_world_aspect = %d\n", g_settings.profile_world_aspect);
+    fprintf(f, "profile_battle_aspect = %d\n", g_settings.profile_battle_aspect);
     fprintf(f, "game_lang = %s\n", g_settings.game_lang);
     bind_settings_save(f);
     fclose(f);

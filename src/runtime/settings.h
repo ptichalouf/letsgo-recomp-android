@@ -7,6 +7,7 @@ enum { RES_MATCH = 0, /* 1..8 = 1x..8x */ RES_DYNAMIC = 9, RES_Q75 = 10, RES_Q25
 enum { UPSCALE_BILINEAR = 0, UPSCALE_FSR1 = 2 /* AMD FSR 1 */ };
 #define UPSCALE_SHARP UPSCALE_FSR1  // the non-bilinear upscaler (the default)
 enum { AA_OFF = 0, AA_SMAA = 1 };
+enum { PASP_GAME = 0, PASP_43 = 1, PASP_FILL = 2 };  // image format of a settings profile
 enum { VREAD_AUTO = 0, VREAD_COPY = 1, VREAD_DIRECT = 2 };
 
 typedef struct {
@@ -26,6 +27,12 @@ typedef struct {
     bool render_thread;  // the backend runs on its own thread (runtime/nvn/vulkan/renderthread.c); default on
     int vertex_read;     // VREAD_*: where the GPU reads vertex and index data (runtime/nvn/vulkan/exec.c)
     bool wild_battle;    // touching a wild Pokémon starts a battle, then the capture (runtime/hle/wildbattle.c)
+    int profile_world_height;   // WORLD profile: internal render height; 0 = shared render_height
+    int profile_battle_height;  // BATTLE/MENUS profile: internal render height; 0 = shared render_height
+    bool profile_world_smaa;    // WORLD profile anti-aliasing
+    bool profile_battle_smaa;   // BATTLE/MENUS profile anti-aliasing
+    int profile_world_aspect;   // PASP_* of the WORLD profile
+    int profile_battle_aspect;  // PASP_* of the BATTLE/MENUS profile
     char game_lang[8];   // the game's language code ("en-US", "es"...: runtime/mods.c game_language)
     char mod[128];       // active mod / fan translation (mods/<name>/), empty = none (runtime/mods.h)
 } Settings;
@@ -34,3 +41,7 @@ extern Settings g_settings;
 
 void settings_load(void);
 void settings_save(void);
+typedef enum { RT_SCENE_MENU = 0, RT_SCENE_WORLD = 1, RT_SCENE_BATTLE = 2 } RtScene;
+RtScene fps60_profile_scene(void);
+void settings_profile_apply(void);
+bool settings_profiles_rejected(void);

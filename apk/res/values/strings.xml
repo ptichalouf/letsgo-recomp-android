@@ -184,6 +184,14 @@
     <string name="fmt_169">"16:9 do jogo (faixas pretas)"</string>
     <string name="fmt_43">"4:3 (experimental: interface esticada)"</string>
     <string name="fmt_fill">"Preencher a tela (experimental: interface esticada)"</string>
+    <string name="profiles_cold">"Perfis guardados; troca automática bloqueada: o renderizador não pré-aquece os shaders. Os controles acima continuam ativos."</string>
+    <string name="profile_world">"Mundo"</string>
+    <string name="profile_battle">"Batalha / Menus"</string>
+    <string name="profile_off">"Desligado"</string>
+    <string name="profile_on">"Ligado"</string>
+    <string name="profile_apply">"Usar no próximo início"</string>
+    <string name="profile_save_error">"Não foi possível salvar os ajustes."</string>
+    <string name="profile_choose_height">"Escolha uma resolução da lista antes de aplicar."</string>
     <string name="sec_image">"Imagem"</string>
     <string name="sec_game">"Jogo"</string>
     <string name="sec_controls">"Controles"</string>

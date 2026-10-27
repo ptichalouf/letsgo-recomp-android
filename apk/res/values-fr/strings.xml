@@ -184,6 +184,14 @@
     <string name="fmt_169">"16:9 du jeu (bandes noires)"</string>
     <string name="fmt_43">"4:3 (expérimental : interface étirée)"</string>
     <string name="fmt_fill">"Remplir l'écran (expérimental : interface étirée)"</string>
+    <string name="profiles_cold">"Profils mémorisés ; bascule automatique bloquée : les shaders ne sont pas préchauffés. Les réglages ci-dessus restent actifs."</string>
+    <string name="profile_world">"Monde"</string>
+    <string name="profile_battle">"Combat / Menus"</string>
+    <string name="profile_off">"Désactivé"</string>
+    <string name="profile_on">"Activé"</string>
+    <string name="profile_apply">"Utiliser au prochain démarrage"</string>
+    <string name="profile_save_error">"Impossible de sauvegarder les réglages."</string>
+    <string name="profile_choose_height">"Choisis une résolution de la liste avant de l’appliquer."</string>
     <string name="sec_image">"Image"</string>
     <string name="sec_game">"Jeu"</string>
     <string name="sec_controls">"Commandes"</string>

@@ -67,6 +67,9 @@ int rt_scene_tick(void) {
 static bool g_mark_scene;
 static long g_world_back = -1;
 long fps60_world_back(void) { return g_world_back; } bool fps60_in_scene(void) { return g_mark_scene; }
+// Observable at 30 Hz too; renderer/launcher hooks can read a completed present without racing the game thread.
+static atomic_int g_profile_scene = RT_SCENE_MENU;
+RtScene fps60_profile_scene(void) { return (RtScene)atomic_load(&g_profile_scene); }
 static int scene_hook(Cpu *c, uint64_t addr) {
     scene_start_hook(c, addr);  // (one hook per address: this one also marks the start for LARECOMP_SHOT_REL)
     if (!g_mark_scene) { g_mark_scene = true; LOG("[scene] start %llu (f_%llx)\n", (unsigned long long)renderer_game_frame(), (unsigned long long)addr); }
@@ -189,13 +192,16 @@ void fps60_present(void) {
         }
     }
     if (getenv("LARECOMP_FPS60_LOG")) log_index();
+    bool field_ran = g_field_ran;
+    g_field_ran = false;
+    atomic_store(&g_profile_scene, field_ran ? RT_SCENE_WORLD : g_scene ? RT_SCENE_BATTLE : RT_SCENE_MENU);
+    settings_profile_apply();  // logs a refused cold-profile request, never mutates rendering state
     if (!g_on) return;
     // 60 only while the world itself updates: menus, the Pokédex and other screens that stop it count their own frames
     // and ran twice as fast (measured: the menu opened in 4 game frames instead of 8)
     static int menu_native = -1;  // (research, LARECOMP_FPS60_MENU_NATIVE=1: menus at 60 natively, as before HISTORICO 47)
     if (menu_native < 0) menu_native = getenv("LARECOMP_FPS60_MENU_NATIVE") != NULL;
-    bool w = !g_special && (g_field_ran || menu_native);
-    g_field_ran = false;
+    bool w = !g_special && (field_ran || menu_native);
     g_world = w;
     static int last = -1;  // 0 world, 1 menu (in-between images), 2 battle / capture
     int state = w ? 0 : fps60_menu() ? 1 : 2;
@@ -207,20 +213,25 @@ void fps60_present(void) {
 // Before each boot (runtime/main.c): the launcher's "60 fps (experimental)" (larecomp.ini fps = 60) turns the mode on
 // when LARECOMP_FPS60 doesn't say otherwise.
 void fps60_configure(void) {
-    static bool hooked;
+    static bool hooked, accessor_hooked;
     extern void settings_load(void);
     settings_load();  // (read once; without the launcher it would come later, in boot)
     if (!getenv("LARECOMP_FPS60")) g_on = g_settings.fps == 60, g_all60 = false;
     extern uint64_t rt_addr(uint64_t eevee);  // (runtime/fnhook.c: 0 in a build it doesn't know)
     if (!rt_addr(FIELD_UPDATE)) g_on = g_all60 = false;
-    if ((g_on || g_stats || getenv("LARECOMP_INPUT_LOOP")) && !hooked) {
+    if (rt_addr(FIELD_UPDATE) && !hooked) {
         hooked = true;
         rt_register_fnhook(FIELD_UPDATE, field_hook);
         rt_register_fnhook(ENCOUNTER_SCENE, scene_hook);
         rt_register_fnhook(BATTLE_START, scene_hook);
+    }
+    if ((g_on || g_stats || getenv("LARECOMP_INPUT_LOOP")) && rt_addr(G_ACCESSOR) && !accessor_hooked) {
+        accessor_hooked = true;
         rt_register_fnhook(G_ACCESSOR, accessor_hook);
     }
     g_world = true, g_special = g_scene = g_played = false;
+    g_field_ran = false;
+    atomic_store(&g_profile_scene, RT_SCENE_MENU);
     if (g_on) LOG("[fps60] on: the world at 60, menus at 30 with in-between images, battles and captures at 30\n");
 }
 

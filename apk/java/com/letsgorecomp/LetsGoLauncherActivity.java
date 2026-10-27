@@ -519,6 +519,15 @@ public class LetsGoLauncherActivity extends Activity {
         refreshDrivers();
         move(sections[1], autoDrv, importDrv);
         move(sections[2], resLabel, resSpinner, customRes, fmtLabel, fmtSpinner, fps60, smaa);
+        TextView profileNote = new TextView(this);
+        profileNote.setText(Txt.t("profiles_cold", "Perfis guardados para uma próxima sessão. Troca automática bloqueada: o renderizador ainda não pré-aquece os shaders. Os controles acima continuam ativos."));
+        profileNote.setTextColor(Color.rgb(200, 210, 220));
+        sections[2].addView(profileNote, lp(-1, -2));
+        LinearLayout profiles = new LinearLayout(this);
+        profiles.setOrientation(LinearLayout.HORIZONTAL);
+        profiles.addView(profileColumn("world", Txt.t("profile_world", "Mundo")), new LinearLayout.LayoutParams(0, -2, 1));
+        profiles.addView(profileColumn("battle", Txt.t("profile_battle", "Batalha / Menus")), new LinearLayout.LayoutParams(0, -2, 1));
+        sections[2].addView(profiles, lp(-1, -2));
         move(sections[3], langLabel, langSpinner, wild);
         modsPanel = new ModsPanel(this);
         modsPanel.build(sections[4]);
@@ -1032,6 +1041,10 @@ public class LetsGoLauncherActivity extends Activity {
         Launch st = launch(this);
         GameFolder.Check c = st.folder;
         String dir = st.dir;
+        if (!java.util.Objects.equals(profileFolder, iniFile().getAbsolutePath())) {
+            profileFolder = iniFile().getAbsolutePath();
+            for (Runnable reload : profileReloads) reload.run();
+        }
         boolean needAccess = st.needAccess;
         String where = dir != null ? Txt.t("folder", "Pasta: ") + dir : "";
         String text;
@@ -1180,6 +1193,113 @@ public class LetsGoLauncherActivity extends Activity {
         } catch (Exception e) { return null; }
     }
 
+    private final java.util.List<Runnable> profileReloads = new java.util.ArrayList<>();
+    private String profileFolder;
+    private boolean profileReloading;
+
+    /** Cold-only requests, saved in the same per-game INI as the existing settings. No live renderer mutation. */
+    private LinearLayout profileColumn(String profile, String title) {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(0, dp(12), dp(8), dp(12));
+        TextView heading = new TextView(this);
+        heading.setText(title);
+        heading.setTextColor(Color.WHITE);
+        col.addView(heading, lp(-1, -2));
+        profileSpinner(col, "profile_" + profile + "_height", Txt.t("res", "Resolução interna:"),
+            new String[]{"480p", "540p", "720p", "900p", "1080p", "1440p"},
+            new String[]{"480", "540", "720", "900", "1080", "1440"}, "world".equals(profile) ? "720" : "1080");
+        profileSpinner(col, "profile_" + profile + "_smaa", Txt.t("smaa", "Suavizar serrilhado (SMAA)"),
+            new String[]{Txt.t("profile_off", "Desligado"), Txt.t("profile_on", "Ligado")},
+            new String[]{"0", "1"}, "0");
+        profileSpinner(col, "profile_" + profile + "_aspect", Txt.t("fmt", "Formato da imagem:"),
+            new String[]{Txt.t("fmt_169", "16:9 do jogo (faixas pretas)"),
+                Txt.t("fmt_43", "4:3 (experimental: interface esticada)"),
+                Txt.t("fmt_fill", "Preencher a tela (experimental: interface esticada)")},
+            new String[]{"0", "1", "2"}, "0");
+        Button apply = new Button(this);
+        apply.setText(Txt.t("profile_apply", "Usar no próximo início"));
+        apply.setOnClickListener(v -> {
+            if (LetsGoActivity.running) return;
+            String prefix = "profile_" + profile + "_";
+            String height = readIniValue(prefix + "height");
+            if (height == null) height = "world".equals(profile) ? "720" : "1080";
+            if (!height.matches("480|540|720|900|1080|1440")) {
+                android.widget.Toast.makeText(this, Txt.t("profile_choose_height", "Escolha uma resolução da lista antes de aplicar."), android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
+            String aa = readIniValue(prefix + "smaa");
+            String format = readIniValue(prefix + "aspect");
+            java.util.LinkedHashMap<String, String> kv = new java.util.LinkedHashMap<>();
+            kv.put("smaa", aa == null ? "0" : aa);
+            if (!updateIni(kv)) return;
+            getSharedPreferences("letsgo", MODE_PRIVATE).edit()
+                .putString("resolution_scale", profileScale(Integer.parseInt(height)))
+                .putString("aspect", "1".equals(format) ? "4:3" : "2".equals(format) ? "fill" : "").apply();
+            // Rebuild the same settings view so the live launch controls cannot display stale values.
+            recreate();
+        });
+        col.addView(apply, lp(-1, -2));
+        return col;
+    }
+
+    static String profileScale(int height) {
+        switch (height) {
+            case 480: return "0.4444";
+            case 540: return "0.5";
+            case 900: return "0.8333";
+            case 1080: return "1.0";
+            case 1440: return "1.3333";
+            default: return "0.6667";
+        }
+    }
+
+    private void profileSpinner(LinearLayout col, String key, String label, String[] names, String[] values, String fallback) {
+        TextView text = new TextView(this);
+        text.setText(label);
+        text.setTextColor(Color.rgb(200, 210, 220));
+        col.addView(text, lp(-1, -2));
+        android.widget.Spinner spinner = new android.widget.Spinner(this);
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new java.util.ArrayList<>(java.util.Arrays.asList(names)));
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        final java.util.List<String> choices = new java.util.ArrayList<>();
+        Runnable reload = () -> {
+            String saved = readIniValue(key);
+            if (saved == null) saved = fallback;
+            choices.clear();
+            java.util.Collections.addAll(choices, values);
+            adapter.clear();
+            adapter.addAll(names);
+            int selected = choices.indexOf(saved);
+            if (selected < 0) {
+                selected = choices.size();
+                choices.add(saved);
+                adapter.add(saved); // preserve hand-edited/legacy values; never rewrite on view construction
+            }
+            profileReloading = true;
+            spinner.setSelection(selected);
+            profileReloading = false;
+        };
+        profileReloads.add(reload);
+        reload.run();
+        spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                if (profileReloading || LetsGoActivity.running || position >= choices.size()) return;
+                String value = choices.get(position);
+                // A callback queued by changing folders must not write the old folder's displayed selection.
+                if (!iniFile().getAbsolutePath().equals(profileFolder)) return;
+                String old = readIniValue(key);
+                if (value.equals(old == null ? fallback : old)) return;
+                java.util.LinkedHashMap<String, String> kv = new java.util.LinkedHashMap<>();
+                kv.put(key, value);
+                updateIni(kv);
+            }
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+        col.addView(spinner, lp(-1, -2));
+    }
+
     /** Read fps/smaa/wild from larecomp.ini in the game folder, or null. */
     private String[] readIni() {
         if (!iniFile().exists()) return null;
@@ -1199,7 +1319,7 @@ public class LetsGoLauncherActivity extends Activity {
 
     /** Set some keys of larecomp.ini, keeping every other line (game_lang, mod, render_height, controller
      *  bindings... the runtime writes them too): the file used to be rewritten with only the launcher's keys. */
-    private void updateIni(java.util.Map<String, String> kv) {
+    private boolean updateIni(java.util.Map<String, String> kv) {
         try {
             File ini = iniFile();
             java.util.List<String> lines = new java.util.ArrayList<>();
@@ -1210,10 +1330,18 @@ public class LetsGoLauncherActivity extends Activity {
             } else {
                 lines.add("# Let's Go Recomp settings (Android launcher)");
             }
-            java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(ini), "UTF-8");
-            for (String l : mergeIni(lines, kv)) w.write(l + "\n");
-            w.close();
-        } catch (Exception ignored) {}
+            File staged = File.createTempFile("larecomp-", ".ini", ini.getParentFile());
+            try {
+                try (java.io.Writer w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(staged), "UTF-8")) {
+                    for (String l : mergeIni(lines, kv)) w.write(l + "\n");
+                }
+                android.system.Os.rename(staged.getAbsolutePath(), ini.getAbsolutePath());
+            } finally { if (staged.exists()) staged.delete(); }
+            return true;
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, Txt.t("profile_save_error", "Não foi possível salvar os ajustes."), android.widget.Toast.LENGTH_LONG).show();
+            return false;
+        }
     }
 
     /** lines with kv's keys set ("key = value", in place; the missing ones appended), every other line unchanged. */
