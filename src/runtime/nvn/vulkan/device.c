@@ -513,6 +513,13 @@ void display_alive(void) {
 void display_dead(void) {
     if (!atomic_load(&g_stalled_since_ms)) atomic_store(&g_stalled_since_ms, SDL_GetTicks());
 }
+// Back in the foreground (LetsGoActivity.onResume): the time spent in the background, where the game waits and presents
+// nothing (runtime/lifecycle.c), is not a silent display. The guard's limit counts again from now.
+void display_foreground(void) {
+    Uint32 now = SDL_GetTicks();
+    if (atomic_load(&g_stalled_since_ms)) atomic_store(&g_stalled_since_ms, now);
+    if (atomic_load(&g_last_present_ms)) atomic_store(&g_last_present_ms, now);
+}
 // 1 when the display has been silent for too long: the engine is alive but the screen shows nothing.
 int display_stalled(void) {
     Uint32 limit = black_screen_limit_ms();

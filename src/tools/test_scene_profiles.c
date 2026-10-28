@@ -98,8 +98,8 @@ int main(void) {
     for (int i = 0; i < 40; i++) { battle_hook(NULL, BATTLE_START); fps60_present(); }
     assert(settings_profile_live_height() == 0 && settings_profile_live_smaa() == -1);  // not prewarmed: refused
     settings_profile_set_prewarmed(true);
-    // a one-frame world flash does not switch (hold), a settled scene does
-    for (int i = 0; i < 5; i++) { world_hook(NULL, FIELD_UPDATE); fps60_present(); }
+    // a world flash does not switch (hold: fewer than WORLD_HOLD = 4 world presents, settings.c), a settled scene does
+    for (int i = 0; i < 3; i++) { world_hook(NULL, FIELD_UPDATE); fps60_present(); }
     assert(settings_profile_live_height() == 0);
     for (int i = 0; i < 30; i++) { battle_hook(NULL, BATTLE_START); fps60_present(); }
     assert(settings_profile_live_height() == 1440 && settings_profile_live_smaa() == 1);

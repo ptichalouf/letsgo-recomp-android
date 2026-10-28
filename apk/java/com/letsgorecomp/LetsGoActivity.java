@@ -16,6 +16,20 @@ public class LetsGoActivity extends SDLActivity {
         };
     }
 
+    /** The master diagnostic switch: on only for the exact value "1" (empty, unset, "0", "true"... = off). */
+    static boolean diagEnabled(String property) {
+        return "1".equals(property == null ? null : property.trim());
+    }
+
+    private static String systemProperty(String key) {
+        try {
+            return String.valueOf(Class.forName("android.os.SystemProperties")
+                    .getMethod("get", String.class, String.class).invoke(null, key, ""));
+        } catch (Throwable e) {
+            return "";
+        }
+    }
+
     // Separate opt-in: the master diagnostic gate alone must not stop presentation.
     static boolean forceDisplayStalled(String diagProperty, String forceProperty) {
         return "1".equals(diagProperty) && "1".equals(forceProperty);
@@ -81,16 +95,17 @@ public class LetsGoActivity extends SDLActivity {
         }
         // Sondas de diagnóstico do texto: DESLIGADAS por padrão. Elas pintam o texto de magenta,
         // forçam quads e inundam o log ([gcopy]/[gcopy-diag]), o que deixa o diálogo ilegível e
-        // o jogo lento. Um único interruptor as liga todas: `adb shell setprop debug.larecomp.diag 1`
-        // (ou LARECOMP_DIAG=1 no ambiente), e só vale para o próximo lançamento do jogo.
-        boolean diag = false;
+        // o jogo lento. Um único interruptor as liga todas: `adb shell setprop debug.larecomp.diag 1`,
+        // e só vale para o próximo lançamento do jogo. Only the property decides (the process outlives a launch: an
+        // environment left by an earlier launch must not switch them on), and the runtime's own probes (pipeline log,
+        // atlas dump, font/tex audits, dialog overrides: runtime/diag.h) follow the same LARECOMP_DIAG.
+        boolean diag = diagEnabled(systemProperty("debug.larecomp.diag"));
         try {
-            String dflt = System.getenv("LARECOMP_DIAG") == null ? "0" : System.getenv("LARECOMP_DIAG");
-            Object v = Class.forName("android.os.SystemProperties")
-                .getMethod("get", String.class, String.class)
-                .invoke(null, "debug.larecomp.diag", dflt);
-            diag = "1".equals(String.valueOf(v).trim());
-        } catch (Throwable ignored) { }
+            if (diag) android.system.Os.setenv("LARECOMP_DIAG", "1", true);
+            else android.system.Os.unsetenv("LARECOMP_DIAG");
+        } catch (Exception e) {
+            android.util.Log.w("lasrecomp", "[diag] LARECOMP_DIAG: " + e);
+        }
         // Strict property gate, independent of the legacy LARECOMP_DIAG fallback.
         try {
             java.lang.reflect.Method get = Class.forName("android.os.SystemProperties")
@@ -255,7 +270,10 @@ public class LetsGoActivity extends SDLActivity {
             public void surfaceChanged(android.view.SurfaceHolder h, int f, int w, int height) {
                 nativeResumeDisplay();
             }
-            public void surfaceDestroyed(android.view.SurfaceHolder h) { nativeDisplaySurfaceGone(); }
+            public void surfaceDestroyed(android.view.SurfaceHolder h) {
+                nativeDisplaySurfaceGone();
+                if (!resumed) setBackground(true);  // (normally onPause came first; never stop a foreground game here)
+            }
         });
         // Apply fullscreen AFTER super.onCreate (SDLActivity resets UI visibility)
         applyFullscreen();
@@ -301,8 +319,20 @@ public class LetsGoActivity extends SDLActivity {
         // the phone's motion sensor aims the Poke Balls (launcher setting, off by default: GyroAim.java)
         if (gyro == null && GyroAim.enabled(this)) gyro = new GyroAim(this);
         if (gyro != null) gyro.resume();
-        // The display guard watches the presentation while the game is in the foreground.
+        // The game computes again (it waited at its present while in the background: runtime/lifecycle.c), and the
+        // display guard watches the presentation while the game is in the foreground.
+        setBackground(false);
         if (guard != null) guard.start();
+    }
+
+    /** The game stops at its next present while the activity is in the background (home, another app, screen off):
+     *  it used to keep computing until Android killed it for excessive CPU. A surface lost in the foreground (fold,
+     *  rotation) does not stop it: DisplayGuard's rebuild needs the game's presents (surfaceDestroyed below). */
+    private boolean resumed;
+    private void setBackground(boolean background) {
+        resumed = !background;
+        try { nativeSetBackground(background); }
+        catch (UnsatisfiedLinkError e) { /* the runtime was refused (rejectBuild): nothing runs */ }
     }
 
     private GyroAim gyro;
@@ -311,6 +341,7 @@ public class LetsGoActivity extends SDLActivity {
     protected void onPause() {
         if (gyro != null) gyro.pause();
         if (guard != null) guard.stop();
+        setBackground(true);
         super.onPause();
     }
 
@@ -339,4 +370,6 @@ public class LetsGoActivity extends SDLActivity {
     /** The player asked to rebuild the surface and show the picture again. */
     public static native void nativeResumeDisplay();
     private static native void nativeDisplaySurfaceGone();
+    /** The activity left (true) or came back to (false) the foreground: runtime/lifecycle.c. */
+    static native void nativeSetBackground(boolean background);
 }

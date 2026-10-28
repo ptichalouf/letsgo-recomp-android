@@ -1217,7 +1217,7 @@ public class LetsGoLauncherActivity extends Activity {
         col.addView(heading, lp(-1, -2));
         profileSpinner(col, "profile_" + profile + "_height", Txt.t("res", "Resolução interna:"),
             new String[]{"480p", "540p", "720p", "900p", "1080p", "1440p"},
-            new String[]{"480", "540", "720", "900", "1080", "1440"}, "world".equals(profile) ? "720" : "1080");
+            new String[]{"480", "540", "720", "900", "1080", "1440"}, "720");  // (both at 720p by default: settings.c)
         profileSpinner(col, "profile_" + profile + "_smaa", Txt.t("smaa", "Suavizar serrilhado (SMAA)"),
             new String[]{Txt.t("profile_off", "Desligado"), Txt.t("profile_on", "Ligado")},
             new String[]{"0", "1"}, "0");
@@ -1230,8 +1230,7 @@ public class LetsGoLauncherActivity extends Activity {
         apply.setOnClickListener(v -> {
             if (LetsGoActivity.running) return;
             String prefix = "profile_" + profile + "_";
-            String height = readIniValue(prefix + "height");
-            if (height == null) height = "world".equals(profile) ? "720" : "1080";
+            String height = profileValue(prefix + "height", "720");
             if (!height.matches("480|540|720|900|1080|1440")) {
                 android.widget.Toast.makeText(this, Txt.t("profile_choose_height", "Escolha uma resolução da lista antes de aplicar."), android.widget.Toast.LENGTH_LONG).show();
                 return;
@@ -1249,6 +1248,30 @@ public class LetsGoLauncherActivity extends Activity {
         });
         col.addView(apply, lp(-1, -2));
         return col;
+    }
+
+    static final String PROFILES_VERSION = "2";
+
+    /** A profile setting as the runtime reads it (runtime/settings.c): the saved value, else the fallback; the battle
+     *  height goes through battleHeight. */
+    private String profileValue(String key, String fallback) {
+        String saved = readIniValue(key);
+        if ("profile_battle_height".equals(key))
+            return battleHeight(saved, readIniValue("profiles_version"), readIniValue("profile_world_height"));
+        return saved == null ? fallback : saved;
+    }
+
+    /** The battle / menus height (settings.c profiles_upgrade): 720 when unset; an older file's 1080 (no
+     *  profiles_version 2) is the old default, not a choice, and follows the world's height; anything else is kept. */
+    static String battleHeight(String saved, String version, String world) {
+        if (saved == null) return "720";
+        int v;
+        try { v = version == null ? 0 : Integer.parseInt(version.trim()); } catch (NumberFormatException e) { v = 0; }
+        if (v >= 2 || !"1080".equals(saved.trim())) return saved;
+        try {
+            int w = Integer.parseInt(world == null ? "" : world.trim());
+            return w >= 360 && w <= 4320 ? String.valueOf(w) : "720";  // (the runtime's bounds: settings.c parse_line)
+        } catch (NumberFormatException e) { return "720"; }
     }
 
     static String profileScale(int height) {
@@ -1274,8 +1297,7 @@ public class LetsGoLauncherActivity extends Activity {
         spinner.setAdapter(adapter);
         final java.util.List<String> choices = new java.util.ArrayList<>();
         Runnable reload = () -> {
-            String saved = readIniValue(key);
-            if (saved == null) saved = fallback;
+            String saved = profileValue(key, fallback);
             choices.clear();
             java.util.Collections.addAll(choices, values);
             adapter.clear();
@@ -1298,10 +1320,14 @@ public class LetsGoLauncherActivity extends Activity {
                 String value = choices.get(position);
                 // A callback queued by changing folders must not write the old folder's displayed selection.
                 if (!iniFile().getAbsolutePath().equals(profileFolder)) return;
-                String old = readIniValue(key);
-                if (value.equals(old == null ? fallback : old)) return;
+                if (value.equals(profileValue(key, fallback))) return;
                 java.util.LinkedHashMap<String, String> kv = new java.util.LinkedHashMap<>();
                 kv.put(key, value);
+                // From now on the battle height in the file is a choice (settings.c profiles_upgrade): write the one
+                // shown, then the version, so an older file's 1080 never turns into a choice nobody made.
+                if (!"profile_battle_height".equals(key))
+                    kv.put("profile_battle_height", profileValue("profile_battle_height", "720"));
+                kv.put("profiles_version", PROFILES_VERSION);
                 updateIni(kv);
             }
             public void onNothingSelected(android.widget.AdapterView<?> parent) {}
