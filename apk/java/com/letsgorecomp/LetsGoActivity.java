@@ -28,6 +28,17 @@ public class LetsGoActivity extends SDLActivity {
         android.util.Log.i("lasrecomp", "[fs] applyFullscreen: delegating to SDL/theme");
     }
 
+    private boolean buildInvalid;
+    @Override public void loadLibraries() {
+        if (buildInvalid) throw new IllegalStateException("Préparation du jeu incomplète ou périmée");
+        super.loadLibraries();
+    }
+    private void rejectBuild(Bundle b) {
+        buildInvalid = true; running = false;
+        super.onCreate(b); // SDL's broken-library path calls Activity, never starts SDL.
+        finish();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         Txt.init(this);  // the phone's language for every word shown (res/values-en, values-fr; PT by default)
@@ -228,6 +239,14 @@ public class LetsGoActivity extends SDLActivity {
             android.util.Log.e("lasrecomp", "[shader] FAILED to copy bundled SPIR-V: " + e.getMessage());
         }
         nativeSetup(gameDir, getApplicationInfo().nativeLibraryDir);
+        // nativeSetup defaults to APK's optional game. Override only with an
+        // integrity-checked app-private result of our local builder.
+        if (!new java.io.File(getApplicationInfo().nativeLibraryDir, "liblasgame.so").isFile()) {
+            String compiled = GameBuild.library(this, gameDir);
+            if (compiled == null) { rejectBuild(savedInstanceState); return; }
+            try { android.system.Os.setenv("LARECOMP_GAME_LIB", compiled, true); }
+            catch (Exception e) { rejectBuild(savedInstanceState); return; }
+        }
         super.onCreate(savedInstanceState);
         // SurfaceView can replace the native producer without changing its Java Surface and
         // without a Vulkan error. Observe lifecycle changes even while presentation is READY.

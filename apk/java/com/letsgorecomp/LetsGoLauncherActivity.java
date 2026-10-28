@@ -72,7 +72,8 @@ public class LetsGoLauncherActivity extends Activity {
             dataRoot = dir != null ? dir : ctx.getFilesDir().getAbsolutePath();
             folder = gameFolder(ctx, dir);
             needAccess = GameDir.needsAllFilesAccess(ctx, dir);
-            gameLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "liblasgame.so").exists();
+            gameLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "liblasgame.so").exists()
+                || GameBuild.hasReady(ctx, dataRoot);
             ready = gameLib && !needAccess && folder.playable();
         }
 
@@ -166,6 +167,10 @@ public class LetsGoLauncherActivity extends Activity {
             }
         });
         root.addView(play, lp(-1, -2));
+        Button prepare = new Button(this);
+        prepare.setText("Importer mon jeu — dossier déjà extrait");
+        prepare.setOnClickListener(v -> startActivity(new Intent(this, GameBuild.class)));
+        root.addView(prepare, lp(-1, -2));
 
         pick = Theme.secondaryButton(this, "");
         pick.setText(Txt.t("sel_folder", "Escolher a pasta do jogo"));

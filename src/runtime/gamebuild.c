@@ -1,12 +1,19 @@
 // Builds the game code library on the player's machine (runtime/gamebuild.h).
 #include "gamebuild.h"
 
+#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef __ANDROID__
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 #include "gamelib.h"
 #include "paths.h"
@@ -35,18 +42,65 @@ static PlatProc g_procs[MAX_PROCS];
 static int g_nprocs;
 static bool g_quitting;
 
+static void builder_kill(PlatProc p) {
+#ifdef __ANDROID__
+    (void)kill(-(pid_t)p, SIGKILL);
+    while (waitpid((pid_t)p, NULL, 0) < 0 && errno == EINTR) {}
+#else
+    plat_proc_kill(p);
+#endif
+}
+static int builder_wait(PlatProc p) {
+#ifdef __ANDROID__
+    int status = 0;
+    pid_t result;
+    do { result = waitpid((pid_t)p, &status, WNOHANG); } while (result < 0 && errno == EINTR);
+    if (result == 0) return -1;
+    if (result < 0) return 255;
+    return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+#else
+    return plat_proc_wait(p, false);
+#endif
+}
 static void end_all(void) {
     pthread_mutex_lock(&g_plock);
     g_quitting = true;
-    for (int i = 0; i < g_nprocs; i++) plat_proc_kill(g_procs[i]);
+    for (int i = 0; i < g_nprocs; i++) builder_kill(g_procs[i]);
     g_nprocs = 0;
     pthread_mutex_unlock(&g_plock);
 }
 
 static PlatProc spawn(char **argv, const char *log) {
     pthread_mutex_lock(&g_plock);
-    PlatProc p = g_quitting ? 0 : plat_spawn((const char *const *)argv, log, false);
-    if (p && g_nprocs < MAX_PROCS) g_procs[g_nprocs++] = p;
+    PlatProc p = 0;
+    if (!g_quitting && g_nprocs < MAX_PROCS) {
+#ifdef __ANDROID__
+        // Android platform spawn AND re-exec are stubs. Only the builder needs
+        // children: exec an APK-installed nativeLibraryDir tool, never codeCache.
+        // Open the log before fork. In the child use async-signal-safe calls only
+        // (the app is multithreaded; no stdio, malloc, JNI or platform callback).
+        int fd = open(log ? log : "/dev/null", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+        if (fd >= 0) {
+            pid_t child = fork();
+            if (child == 0) {
+                if (setpgid(0, 0) != 0 || dup2(fd, STDOUT_FILENO) < 0 || dup2(fd, STDERR_FILENO) < 0)
+                    _exit(126);
+                if (fd > STDERR_FILENO) close(fd);
+                execv(argv[0], argv);
+                _exit(127);
+            }
+            close(fd);
+            if (child > 0) {
+                // Close the group-creation race before cancellation can kill it.
+                (void)setpgid(child, child);
+                p = (PlatProc)child;
+            }
+        }
+#else
+        p = plat_spawn((const char *const *)argv, log, false);
+#endif
+    }
+    if (p) g_procs[g_nprocs++] = p;
     pthread_mutex_unlock(&g_plock);
     return p;
 }
@@ -54,7 +108,7 @@ static PlatProc spawn(char **argv, const char *log) {
 // plat_proc_wait without blocking, then forgotten once it has ended
 static int finished(PlatProc p) {
     pthread_mutex_lock(&g_plock);
-    int r = plat_proc_wait(p, false);
+    int r = builder_wait(p);
     if (r >= 0)
         for (int i = 0; i < g_nprocs; i++)
             if (g_procs[i] == p) { g_procs[i] = g_procs[--g_nprocs]; break; }
@@ -68,7 +122,7 @@ static void stop(PlatProc p) {  // ends one that is still running, then forgotte
     for (int i = 0; i < g_nprocs; i++)
         if (g_procs[i] == p) { g_procs[i] = g_procs[--g_nprocs]; ours = true; break; }
     pthread_mutex_unlock(&g_plock);
-    if (ours) plat_proc_kill(p);
+    if (ours) builder_kill(p);
 }
 
 static void sleep_ms(int ms) { plat_sleep_until_ns(plat_now_ns() + (uint64_t)ms * 1000000ull); }
@@ -281,10 +335,14 @@ bool gamebuild_run(const char *game_dir, const GameBuildOpts *o, char *why, size
     snprintf(work, sizeof work, "%s" SEP ".gamebuild", game_dir);
     snprintf(lib, sizeof lib, "%s" SEP "%s", game_dir, GAMELIB_NAME);
     snprintf(tmp, sizeof tmp, "%s" SEP "%s.tmp", work, GAMELIB_NAME);
+    // Start from clean intermediates: until there is a content-addressed resume
+    // manifest, stale chunks from another game/version must never be linked.
     rt_remove_game_file(game_dir, ".gamebuild");
-    rt_remove_game_file(game_dir, GAMELIB_NAME);
-    rt_remove_game_file(game_dir, GAMELIB_NAME ".id");
-    mkdir(work, 0755);
+    // Do not erase a previously working library before its replacement links.
+    if (mkdir(work, 0700) != 0) {
+        snprintf(why, why_size, "the build folder couldn't be created");
+        return false;
+    }
     if (t.zig) {  // its caches in the work folder too (deleted below), not ~/.cache: hundreds of MB, used once
         char zc[1200];
         snprintf(zc, sizeof zc, "%s" SEP "zig-cache", work);
