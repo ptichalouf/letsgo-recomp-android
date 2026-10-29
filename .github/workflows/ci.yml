@@ -1,0 +1,80 @@
+# CI — tests synthétiques, sans jeu ni device
+#
+# Aucun secret, aucune clé, aucun fichier de jeu n'est utilisé ici.
+#
+# Le build complet exige un dump personnel : il ne peut pas être fait en CI, et ce
+# n'est pas un défaut. Les jobs ci-dessous sont ceux qui, eux, peuvent tourner sans
+# le jeu.
+#
+# Mesuré le 29/10/2026 sur `publication` (adbf12dd) avec JDK 17, NDK 28.2,
+# SDK android-34 : 34 tests à la racine (30 verts, 4 skipped faute de SDL3
+# construit) et 8 tests côté APK (8 verts).
+
+name: CI
+
+on:
+  push:
+    branches: [publication, master]
+  pull_request:
+    branches: [publication, master]
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    name: Garde-fous du dépôt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # --history scanne les commits précédents
+
+      - name: Aucun contenu de jeu, clé ou signature
+        run: python3 tools/check_no_game_content.py
+
+      - name: Fins de ligne (LF sauf .bat/.ps1)
+        run: python3 tools/check_line_endings.py
+
+      - name: Les liens des documents pointent quelque part
+        run: python3 tools/check_doc_links.py
+
+      - name: Aucun secret
+        run: python3 tools/check_no_secrets.py --history
+
+  tests:
+    name: Tests synthétiques (JDK / SDK / NDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Certains tests comparent au code d'avant le correctif (git show
+          # <commit>:<fichier>) : il faut l'historique, pas le seul dernier commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Versions exigées par build-apk.sh (BT=$SDK/build-tools/35.0.0,
+      # platforms/android-34, NDK 28.2.13676358), pas les dernières disponibles.
+      # La v4 accepte les licences et n'exige plus l'ancien paquet `tools`.
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-34
+            build-tools;35.0.0
+            ndk;28.2.13676358
+
+      - name: Variables d'environnement
+        run: echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Tests de la racine
+        # test_stage_buildkit exige LETSGO_KIT_SOURCE, un kit privé et audité qui
+        # n'est jamais publié : il saute ici, c'est assumé.
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Tests de l'APK
+        run: python3 -m unittest discover -s apk/test -p 'test_*.py' -v

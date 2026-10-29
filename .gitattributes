@@ -1,0 +1,31 @@
+# Fins de ligne : LF partout, sauf les fichiers Windows natifs.
+# Un CRLF dans un script bash casse le script : c'est un bug, pas un style.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaires : jamais de conversion.
+*.ttf binary
+*.otf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.zip binary
+*.so binary
+*.a binary
+*.o binary
+*.lib binary
+*.exe binary
+*.dll binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.mp4 binary
+*.bin binary
+*.dat binary

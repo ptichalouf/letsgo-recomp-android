@@ -1,0 +1,32 @@
+# Artefacts de build et de test — jamais versionnés.
+build/
+build-*/
+deps/
+out/
+*.apk
+*.aab
+
+# Sorties de génération (le code du jeu ne doit jamais être versionné)
+generated/
+generated-aarch64/
+extracted/
+
+# Clés, saves, contenu du jeu — le dépôt ne doit jamais les contenir.
+*.nsp
+*.xci
+*.nca
+*.ncz
+*.nsz
+*.xcz
+prod.keys
+title.keys
+save/
+mods/
+*.bfttf
+
+# Outillage local
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
