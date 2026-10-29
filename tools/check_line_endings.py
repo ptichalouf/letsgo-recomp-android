@@ -8,6 +8,7 @@ Windows-native files (.bat, .ps1). This guard runs in CI and can be run locally:
 
 Exit status 0 = clean, 1 = refused (with the offending paths listed).
 """
+import os
 import sys
 from pathlib import Path
 
@@ -43,7 +44,7 @@ def is_text(path: Path) -> bool:
 
 def main() -> int:
     findings = []
-    for dirpath, dirnames, filenames in __import__("os").walk(ROOT):
+    for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for name in filenames:
             path = Path(dirpath) / name

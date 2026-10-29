@@ -20,42 +20,42 @@ SKIP_DIRS = {".git", "node_modules", "build", "deps", "__pycache__", ".gradle"}
 # Extensions that only ever hold game data, keys or signing material.
 FORBIDDEN_SUFFIXES = {
     ".nsp", ".xci", ".nca", ".ncz", ".nsz", ".xcz",
-    ".key", ".keys", ".prod.keys", ".title.keys",
+    ".key", ".keys",
     ".bfttf", ".bfs",  # Switch system fonts
     ".jks", ".keystore", ".p12", ".pfx",
     ".pem", ".der",
 }
 
+# Names that hold game data whatever their extension.
+FORBIDDEN_NAMES = {"prod.keys", "title.keys"}
+
 # Directory names that hold game data when present.
 FORBIDDEN_DIRS = {
     "extracted", "generated", "generated-aarch64", "romfs", "exefs",
-    "prod.keys", "title.keys", "save",
+    "save", "mods",
 }
 
-# Text files that legitimately use these words in their content.
+# Files that legitimately mention these words in their content.
 NAME_ALLOWLIST = {
     "src/tools/gen.py", "src/tools/lifter.py",
 }
 
 
-def is_forbidden_path(path: Path) -> str:
-    """Return a reason if the path is forbidden, else an empty string."""
+def reason_for(path: Path) -> str:
+    """Return why the path is forbidden, or an empty string if it is fine."""
     rel = path.relative_to(ROOT).as_posix()
-    name = path.name.lower()
-
     if rel in NAME_ALLOWLIST:
         return ""
 
+    name = path.name.lower()
+    if name in FORBIDDEN_NAMES:
+        return "console keys"
     if name in FORBIDDEN_DIRS:
         return "directory holding game data"
 
     suffix = path.suffix.lower()
     if suffix in FORBIDDEN_SUFFIXES:
         return f"game/key/signing material ({suffix})"
-
-    if name in {"prod.keys", "title.keys"}:
-        return "console keys"
-
     return ""
 
 
@@ -63,17 +63,19 @@ def main() -> int:
     findings = []
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+
         for name in list(dirnames):
-            reason = is_forbidden_path(Path(dirpath) / name / "x")
+            path = Path(dirpath) / name
+            reason = reason_for(path)
             if reason:
-                rel = (Path(dirpath) / name).relative_to(ROOT).as_posix()
-                findings.append((rel, reason))
-                dirnames.remove(name)
+                findings.append((path.relative_to(ROOT).as_posix(), reason))
+                dirnames.remove(name)  # do not descend into it
+
         for name in filenames:
-            reason = is_forbidden_path(Path(dirpath) / name)
+            path = Path(dirpath) / name
+            reason = reason_for(path)
             if reason:
-                rel = (Path(dirpath) / name).relative_to(ROOT).as_posix()
-                findings.append((rel, reason))
+                findings.append((path.relative_to(ROOT).as_posix(), reason))
 
     if findings:
         print("REFUSED: game content, keys or signing material found:", file=sys.stderr)

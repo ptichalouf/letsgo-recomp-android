@@ -54,7 +54,10 @@ jobs:
 
       - name: Installer le SDK Android et le NDK
         run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          # build-apk.sh exige build-tools/35.0.0, platforms/android-34 et le NDK
+          # 28.2.13676358 : ce sont les versions que le script attend, pas les
+          # dernieres disponibles.
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0"
           sdkmanager "ndk;28.2.13676358"
 
       - name: Variables d'environnement
@@ -85,7 +88,10 @@ jobs:
 
       - name: Installer le SDK Android et le NDK
         run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          # build-apk.sh exige build-tools/35.0.0, platforms/android-34 et le NDK
+          # 28.2.13676358 : ce sont les versions que le script attend, pas les
+          # dernieres disponibles.
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0"
           sdkmanager "ndk;28.2.13676358"
 
       - name: Variables d'environnement
