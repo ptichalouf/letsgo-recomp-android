@@ -1,17 +1,22 @@
 # Roadmap — Let's Go Eevee, Android port
 
-**State as of 29/10/2026.** This document describes **what is true today**, verified
-on a device, and what is still open. It is not a wish list: a line that is not backed
-by a measurement is not in here.
+**State as of 29/10/2026.** This roadmap is for the static-recompiled Android
+port in this repository. It separates historical device evidence, merged changes
+with host tests, and work still requiring device verification. Raitchi is a
+separate runtime: its results do not validate this port.
 
 > For coding assistants, also read [`AGENTS.md`](../AGENTS.md).
 > For the audit detail: [`ISSUES.md`](../ISSUES.md) and `docs/`.
 
 ---
 
-## Verified and published
+## Published baseline and merged changes
 
-Reference branch: `publication`. Reference version: `adbf12dd`.
+Reference branch: `publication`. The original baseline was `adbf12dd`;
+PRs #2, #3, #5 and #6 were subsequently merged, followed by APK guard PR #4
+at `1b435ec8`. Device observations below are not a fresh qualification of that
+combined build. The repository CI after #4 reports 57 root tests (6 explicit
+skips) and 8 APK-side tests, with no failures.
 
 | Area | State | Evidence |
 |---|---|---|
@@ -23,14 +28,14 @@ Reference branch: `publication`. Reference version: `adbf12dd`.
 | Render profiles World / Combat-Menus | automatic per-scene switch | `src/runtime/nvn/output_scale.c` |
 | Event loop | no longer wakes itself up | SDL sentinel fix |
 | Black screen after rotation / fold | surface reacquisition + guard | `src/runtime/platform/android.c`, `device.c` |
-| Android software keyboard | **fixed**: typed text displays intact | UTF-16LE fix |
-| Building the library on the phone | the phone produces `liblasgame.so` and launches the game | milestone A, Fold4 |
+| Android software keyboard | UTF-16 output path is present; this combined build still needs device qualification | `src/runtime/hle/swkbd.c`; do not substitute Raitchi's keyboard results |
+| Building the library on the phone | an extracted-directory milestone was observed on Fold4; full NSP/XCI-to-library flow is not established | milestone A, not a complete end-user build recipe |
 
 ### Recently fixed (28–29/10)
 
-- **Software keyboard**: typed text arrived corrupted (`汁???e`). The defect was in the
-  **transport** (encoding), not in the game file. Fixed and verified on a real
-  screen.
+- **Software keyboard**: this fork contains a UTF-16 output path. The separate
+  Raitchi keyboard fix and its device results must not be reported as a fresh test
+  of this port.
 - **Resolution switch**: the World/Combat-Menus profile change landed ~14 s too late
   after a battle.
 - **Background stop**: the engine kept rendering when not in the foreground
@@ -39,10 +44,11 @@ Reference branch: `publication`. Reference version: `adbf12dd`.
   instead of 67 %.
 - **Black screen** after rotation or fold: Android destroys and recreates the Vulkan
   `Surface`; it must be reacquired and the image replayed.
-- **Atomic publication**: on certified Android, `link()` is refused
-  (`neverallow AOSP all_untrusted_apps file_type:file link`). The native manifest is
-  published with `renameat2(RENAME_NOREPLACE)` and **fails closed**: a conflict never
-  overwrites an existing generation.
+- **APK archive guards (#4)**: failed ZIP commands, integrity-check failures,
+  missing `classes.dex`, and missing required native libraries are rejected by
+  `build-apk.sh`. Five packaging regression tests exercise these guards.
+- **shaderInt64 fallback (#5)**: integrated and host-tested; see P7 for the device
+  validation that is still required.
 
 ---
 
@@ -113,32 +119,24 @@ Only **~13–14 fps** in Viridian Forest at 720p, with ~17 000 vegetation draws.
 **Out of scope without profiling first**: instancing, merging. A "performance fix" that
 adds a wait or degrades quality is not a fix.
 
-### P6 — The second guest-heap SIGSEGV (Raitchi runtime)
+### P6 — Reserved: Raitchi investigation removed from this port's backlog
 
-**Localised to the line**: `engine/ports/shared-android/runtime/platform/android.c`,
-in `plat_written_pages()`. The `mprotect(PROT_READ)` protects a page of the guest heap
-that **has no physical page yet** (the reservation is `MAP_NORESERVE`, materialised on
-demand): the page becomes unmapped for writing → `SEGV_MAPERR`, which the fault
-handler cannot catch.
+The previous entry concerned a guest-heap crash in **Raitchi**, not this repository.
+It did not establish a defect in this port. It has been removed to avoid sending
+contributors to files and results from another runtime. A new issue here needs a
+reproduction against this repository's exact commit.
 
-**Acceptance criterion**: the defect no longer reproduces on the reference device, and
-the fix is upstreamable (no fork divergence).
+### P7 — `shaderInt64` fallback merged; device verification still open
 
-**Method note**: establishing the root cause required a **trace that names the
-caller** (`__builtin_return_address` + `dladdr`) and the **memory map of the process
-alive at the moment of the crash** (`/proc/<pid>/maps`). A trace that does not say
-*where* proves nothing.
+[PR #5](https://github.com/ptichalouf/letsgo-recomp-android/pull/5) rebased and
+integrated the fallback. Host regression tests compare GLSL with the feature
+against the baseline, exercise paired 32-bit arithmetic without it, and validate
+SPIR-V when the required tools are installed. See
+[`tests/README-shader-int64.md`](../tests/README-shader-int64.md).
 
-### P7 — The `shaderInt64` fix, not merged
-
-An existing branch (`fix/texto-invisivel-sem-int64`) fixes 64-bit shader arithmetic
-when the device **lacks** the `shaderInt64` feature — which is the case for the system
-Qualcomm driver. The SPIR-V then declares `OpCapability Int64` without the feature
-existing: undefined behaviour, and the text vertex shaders produce no fragment.
-
-**Why it is in the backlog**: the fix exists but is not rebased onto `publication`.
-Rebase it, check that the GLSL **with** the feature stays identical byte for byte,
-then open a pull request.
+**Still required**: readable menu and dialogue text on a real Adreno device running
+this combined build. Do not equate the synthetic test with a rendering result.
+No new rebase or duplicate implementation of the already merged fix is needed.
 
 ### P8 — 16 KiB alignment
 

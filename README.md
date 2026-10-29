@@ -1,156 +1,163 @@
-# Let's Go Eevee — Port Android
+# Let's Go Eevee · Android
 
-Port não-oficial de **Pokémon Let's Go, Eevee!** (Nintendo Switch) para Android, baseado no
-[letsgo-recomp](https://github.com/raulzrrs/letsgo-recomp) (recompilação estática, por raulzrrs).
-Testado no Galaxy S23 (Snapdragon 8 Gen 2, Adreno 740, Android 16).
+[![CI](https://github.com/ptichalouf/letsgo-recomp-android/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ptichalouf/letsgo-recomp-android/actions/workflows/ci.yml)
 
-> **Uso pessoal. Este repositório NÃO contém o jogo, nem código do jogo, nem chaves.**
-> Para buildar você precisa do seu próprio dump legalmente obtido (ver [BUILD.md](BUILD.md)).
->
-> 📺 Canal da autora no YouTube: https://youtube.com/@emuucheck
+Port experimental e não oficial de **Pokémon: Let's Go, Eevee!** para Android,
+baseado em recompilação estática. Este fork reúne o runtime, o aplicativo Android,
+os testes e a documentação para continuar o trabalho em comunidade.
 
-## Projeto e setup por LLM — AC-Création
+**Não é um emulador genérico nem um APK pronto para jogar.** A compilação completa
+precisa de uma cópia do jogo obtida legalmente pelo próprio usuário e das suas
+próprias chaves. Não solicite nem publique esses arquivos aqui.
 
-Este repositório é mantido e evoluído pela **AC-Création**
-([ac-creation.com](https://ac-creation.com)).
+[Estado e próximos passos](docs/ROADMAP.md) · [Compilar](BUILD.md) ·
+[Contribuir](CONTRIBUTING.md) · [Guia para assistentes de IA](AGENTS.md) ·
+[Índice para LLMs](docs/INDEX-FOR-LLMS.md)
 
-A AC-Création instala e configura, para cada cliente, uma IA que faz um trabalho
-preciso — aqui, um assistente de codagem que mantém este port. O setup é fait
-**par LLM** : un agent lit le dépôt, monte la toolchain, lance les tests et prépare
-les corrections, avec les règles de preuve écrites dans le dépôt lui-même
-([`AGENTS.md`](AGENTS.md)) et validées par la CI.
+## Configuração automatizada por LLM · AC-Création
 
-O que isso significa para quem chega aqui:
+A configuração deste fork e do seu fluxo de contribuição foi automatizada com
+assistentes de IA (LLMs) por **[AC-Création — ac-creation.com](https://ac-creation.com)**:
+documentação, orientação para os assistentes, preparação do ambiente, testes e
+verificações automáticas das contribuições.
 
-- O repositório é **LLM-native** — [`AGENTS.md`](AGENTS.md) é lu nativement par
-  Codex, Claude Code, Cursor, Copilot, Aider et Zed. Ce n'est pas une documentation
-  humaine convertie en prompt : ce sont les règles du travail.
-- A **toolchain é détectée, pas devinée** : [`tools/env.sh`](tools/env.sh) trouve
-  JDK, SDK, NDK et le kit de build et exporte les variables. Il n'installe rien.
-- Les **tests synthétiques tournent sans jeu et sans appareil** — 57 tests à la
-  racine, 8 du APK. La CI refuse toute PR qui introduit du contenu de jeu, une clé,
-  un secret ou un lien mort.
-- Le travail est **vérifié avant d'être annoncé** : une correction entre par PR, avec
-  la commande de preuve et le code de sortie dans le corps de la PR.
+Os assistentes podem ler as instruções em [`AGENTS.md`](AGENTS.md), localizar os
+componentes pelo [índice do repositório](docs/INDEX-FOR-LLMS.md) e propor uma PR com
+comandos e resultados reproduzíveis. Se uma ferramenta não carregar `AGENTS.md`
+automaticamente, forneça o arquivo como contexto.
 
-Si vous voulez que l'AC-Création fasse la même chose pour votre projet — une IA
-installée chez vous ou hébergée, cadrée sur un travail précis — :
-**[ac-creation.com](https://ac-creation.com)**.
+**Automação não é prova de funcionamento.** A assistência de IA deve ser declarada;
+os testes, a revisão e as limitações da verificação devem acompanhar cada correção.
+A aprovação de uma PR não equivale a testar o jogo em um telefone.
 
-## O que este repositório contém
+## Estado deste fork · 29 de outubro de 2026
 
-| Pasta/arquivo | Conteúdo |
+| Área | O que está estabelecido |
 |---|---|
-| `src/` | Código-fonte completo: `runtime/` (NVN→Vulkan, HLE, SDL3), `tools/` (geração: `gen.py`, `lifter.py` e mais 22 scripts), `Makefile`, `third_party/` (imgui, smaa, vma, fontes), `docs/` (docs upstream) |
-| `apk/` | App Android: launcher, importador in-app, overlay de controles, manifest |
-| `importer/` | Importador de NSP no aparelho (lê o dump do usuário e extrai `exefs`/`romfs`) |
-| scripts na raiz | Scripts de build (`build-runtime.sh`, `link-runtime.sh`, `build-apk.sh`, etc.) |
-| `docs/` | Documentação do projeto: auditorias, relatórios de builds, HOWTO original |
-| `screenshots/` | Capturas do jogo rodando no S23 (estado atual) |
-| `BUILD.md` | **Tutorial completo de build**: o que você precisa, passo a passo |
-| `ISSUES.md` | **Problemas conhecidos**: o que funciona, o que não funciona, e o que já foi investigado |
-| `RELATORIO-ATUALIZADO.md` | Relatório detalhado do estado do projeto (v0090) |
-| `AGENTS.md` | **Regras para assistentes de codagem**: comandos, limites, como provar uma correção |
-| `CONTRIBUTING.md` | Regras de contribuição para humanos e para IAs |
-| `docs/ROADMAP.md` | Estado verificado, correções recentes, fila de problemas abertos |
-| `docs/INDEX-FOR-LLMS.md` | Mapa do repositório para LLMs |
+| Execução do jogo | O projeto de origem documenta boot, mundo 3D, batalhas, menus e saves no Galaxy S23. As capturas abaixo são do build histórico v0090, não uma validação da versão atual. |
+| Aplicativo Android | Código do importador, controles, instalação e ordenação de mods, resolução e perfis Mundo / Combate-Menus presente neste fork. |
+| Desempenho | PRs [#2](https://github.com/ptichalouf/letsgo-recomp-android/pull/2) e [#3](https://github.com/ptichalouf/letsgo-recomp-android/pull/3) integradas: cópias de buffers, suspensão em segundo plano e regressões dos perfis de renderização. A CI não mede FPS. |
+| Compatibilidade dos shaders | Fallback para GPUs sem `shaderInt64` integrado na [PR #5](https://github.com/ptichalouf/letsgo-recomp-android/pull/5), com regressões sintéticas. A legibilidade do texto no telefone ainda precisa de confirmação. |
+| Empacotamento do APK | [PR #4](https://github.com/ptichalouf/letsgo-recomp-android/pull/4) integrada: falhas do ZIP, DEX ausente e bibliotecas nativas obrigatórias ausentes são recusadas antes da publicação do arquivo. |
+| Testes automáticos | Referência da CI após #4: **57 testes na raiz, com 6 ignorados explicitamente, e 8 testes do aplicativo**, sem falhas. Não incluem execução do jogo em aparelho. |
 
-## O que este repositório NÃO contém (de propósito)
+**Texto invisível continua como problema a validar em aparelho.** O fallback de
+shaders foi integrado, mas um teste no computador não prova o resultado visual.
+[`ISSUES.md`](ISSUES.md) preserva as investigações históricas;
+[`docs/ROADMAP.md`](docs/ROADMAP.md) separa o trabalho integrado da validação pendente.
 
-- ❌ O código recompilado do jogo (`generated-aarch64/`) — derivado do binário da Nintendo
-- ❌ O NSP, `prod.keys`, `title.keys` ou qualquer dump — use o seu próprio
-- ❌ Assets do jogo (texturas, modelos, fontes, áudio)
-- ❌ APKs prontos — eles embutem o jogo recompilado e não podem ser distribuídos
+Este repositório contém o **port recompilado**. Raitchi é outro projeto, com outro
+runtime: resultados, defeitos e correções de um não validam automaticamente o outro.
 
-Sem o código gerado e o dump, o projeto **não compila sozinho**. O [BUILD.md](BUILD.md)
-explica como gerar tudo a partir do seu próprio dump.
+## Começar
 
-## Estado atual
+### Ajudar sem ter o jogo
 
-**Funciona:** boot, mundo 3D, mapa, batalhas, menus, save, touch e controle físico,
-importador de NSP, resolução escalável (480p–1080p), mods instaláveis com ordem escolhida
-pelo usuário, perfis de renderização Mundo / Combate-Menus, teclado Android corrigido,
-~22–30 fps.
+Você pode contribuir com documentação, testes sintéticos ou correções isoladas.
+Os testes usam pequenas bibliotecas e arquivos fictícios, sem código nem dados do jogo.
 
-**Não funciona:** **o texto é invisível** em menus, diálogos e HUD. É o problema principal
-e está documentado em detalhes em [ISSUES.md](ISSUES.md) — incluindo tudo o que já foi
-eliminado por prova (cull, depth, write_mask, scissor, matriz de projeção, atributo `a0`,
-janela de cópia de memória).
+No Linux x86_64, o ambiente de CI utiliza:
 
-O estado completo, medido e datado, está em **[`docs/ROADMAP.md`](docs/ROADMAP.md)**:
-o que foi verificado em aparelho, o que foi corrigido em 28–29/10, e a fila de problemas
-abertos com o critério de aceitação de cada um.
-
-### Screenshots — estado atual (Galaxy S23, v0090)
-
-O mundo 3D, as batalhas e os menus renderizam — mas **todo texto dinâmico está vazio**.
-As caixas de diálogo, menus e listas de itens abrem em branco. (As imagens abaixo são
-capturas do jogo rodando no aparelho, apenas para demonstrar o estado do port.)
-
-| | |
-|---|---|
-| ![Mundo e diálogo](screenshots/01-mundo-casa-dialogo.jpg) | ![Diálogo vazio](screenshots/02-dialogo-vazio.jpg) |
-| Mundo renderizando (20 fps) com caixa de diálogo aberta | Caixa de diálogo **vazia** — o texto não aparece |
-| ![Menu vazio](screenshots/03-menu-vazio.jpg) | ![Tela título](screenshots/04-tela-titulo.jpg) |
-| Menu do jogo com barras **vazias** (sem texto) | Tela-título funciona (texto da logo é textura, não texto dinâmico) |
-| ![Caminho da floresta](screenshots/05-caminho-floresta.jpg) | ![Batalha](screenshots/06-batalha.jpg) |
-| Viridian Forest: caminho e vegetação renderizando | Batalha funcionando (30 fps) |
-| ![Floresta e sombras](screenshots/07-floresta-sombras.jpg) | ![Loja com itens vazios](screenshots/08-loja-itens-vazios.jpg) |
-| Sombras blocadas na floresta (15 fps — ver ISSUES.md §4) | Loja: prateleiras e lista de itens com textos **vazios** |
-| ![Centro Pokémon](screenshots/09-centro-pokemon.jpg) | |
-| Interior do Centro Pokémon renderizando (30 fps) | |
-
-## Build rápido
+- Python 3, compiladores C/C++, `make`, `zip` e `unzip`;
+- JDK 17;
+- Android SDK: plataforma `android-34` e build-tools `35.0.0`;
+- Android NDK `28.2.13676358`.
 
 ```bash
-# 1. Gere o código do jogo a partir do SEU dump (ver BUILD.md)
-cd src && make gen ARCH=aarch64
-
-# 2. Compile o runtime, o importador e linke
-./build-runtime.sh    # espera SMOKE_OK
-./build-importer.sh
-./link-runtime.sh     # espera RUNTIME_LINK_OK
-
-# 3. Monte e assine o APK
-./build-apk.sh        # APK sai na raiz
-```
-
-Detalhes, pré-requisitos e armadilhas: **[BUILD.md](BUILD.md)**.
-
-## Como contribuir
-
-Este repositório aceita contribuições — e em particular aceita contribuições feitas
-com um assistente de codage (LLM). O ponto de partida:
-
-| O que você quer | Onde está |
-|---|---|
-| **Quer ajudar (humano ou IA)** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — regras, formato de PR, o que nunca postar |
-| **Usando uma IA** | [`AGENTS.md`](AGENTS.md) — comandos, limites e como provar uma correção |
-| **Índice para LLMs** | [`docs/INDEX-FOR-LLMS.md`](docs/INDEX-FOR-LLMS.md) — mapa do repositório |
-| **O que funciona e o que falta** | [`docs/ROADMAP.md`](docs/ROADMAP.md) — fila de problemas com critério de aceitação |
-| **Problemas já conhecidos** | [`ISSUES.md`](ISSUES.md) — inclusive o que já foi **eliminado por prova** |
-
-Pontos que economizam tempo a todo mundo:
-
-- **Nunca** poste o jogo, chaves, saves ou assets do jogo. O repositório não deve
-  contê-los, e o CI recusa a build se aparecerem.
-- O build completo **exige o seu dump** — isso não é um bug e ninguém (nem uma IA)
-  consegue contorná-lo. Mas os testes sintéticos rodam sem jogo:
-  `python3 -m unittest discover -s tests -v`.
-- Uma PR = **um** problema delimitado. Não reescreva pontos quentes do renderizador
-  (`translate.c`, `exec.c`) sem antes comentar a issue de acompanhamento.
-- Abra a PR em **rascunho**: quem decide a fusão é o mantenedor.
-
-Toolchain para os testes (JDK 17, SDK Android, NDK r28c ou mais novo):
-
-```bash
-source tools/env.sh    # mostra o que encontrou; só exporta variáveis, não instala nada
+# Na raiz de um clone Git completo, com o ambiente instalado:
+source tools/env.sh
 python3 -m unittest discover -s tests -v
 python3 -m unittest discover -s apk/test -p 'test_*.py' -v
+
+# Verificações do conteúdo e da documentação:
+python3 tools/check_no_game_content.py
+python3 tools/check_no_secrets.py --history
+python3 tools/check_line_endings.py
+python3 tools/check_doc_links.py
 ```
 
-## Créditos
+`tools/env.sh` procura ferramentas já instaladas e configura variáveis; **não instala
+nem baixa nada**. Consulte o [workflow de CI](.github/workflows/ci.yml) para o ambiente
+reproduzível. Alguns testes precisam do histórico Git para comparar o código antes
+e depois de um corretivo: use um clone completo, não apenas o ZIP do repositório.
 
-- [raulzrrs / letsgo-recomp](https://github.com/raulzrrs/letsgo-recomp) — recompilação estática original
-- [peiikai / LASRecomp](https://github.com/peiikai/LASRecomp) — base do runtime (ver `LICENSE-LASRecomp`)
-- [Nycolazs / LASRecomp-Android-Plus](https://github.com/Nycolazs/LASRecomp-Android-Plus) — referência de port Android
+Os testes de espera do SDL, do kit privado e da validação SPIR-V são ignorados quando
+os seus pré-requisitos específicos estão ausentes. Um teste ignorado não é um teste
+aprovado; cada execução informa o que ficou sem verificar.
+
+### Compilar para uso pessoal
+
+Siga o [guia de compilação](BUILD.md), com seu próprio dump, suas próprias chaves e
+as dependências Android preparadas. O guia contém as etapas do runtime, do
+importador, da biblioteca do jogo e do APK.
+
+O comando `GAME=none ./build-apk.sh` monta o aplicativo sem a biblioteca do jogo;
+`GAME=with ./build-apk.sh` exige uma biblioteca pessoal compatível. Um APK que
+contenha código ou dados derivados do jogo **não deve ser publicado**.
+
+## Contribuir com ou sem IA
+
+1. Leia a [roadmap](docs/ROADMAP.md) e os [problemas conhecidos](ISSUES.md).
+2. Abra uma [issue](https://github.com/ptichalouf/letsgo-recomp-android/issues) para
+   combinar o escopo, especialmente se for alterar o renderizador.
+3. Trabalhe em uma branch baseada em `publication`: **um problema por PR**.
+4. Inclua a reprodução, o teste antes/depois e as limitações. Não apresente resultados
+   previstos como medições.
+5. Siga [`CONTRIBUTING.md`](CONTRIBUTING.md) e, para assistência de IA,
+   [`AGENTS.md`](AGENTS.md) e [a política de contribuição assistida](.github/AI_CONTRIBUTING.md).
+
+As branches `master` e `publication` são protegidas: alterações passam por PR,
+com os dois controles de CI aprovados e a base atualizada. Push direto, exclusão e
+reescrita do histórico são bloqueados. A proteção não concede exceção ao proprietário.
+
+## O que há no repositório
+
+| Caminho | Conteúdo |
+|---|---|
+| `src/runtime/` | Runtime HLE, tradução NVN→Vulkan e integração de plataforma. |
+| `src/tools/` | Ferramentas de geração e diagnóstico. |
+| `apk/` | Aplicativo Android, launcher e controles. |
+| `importer/` | Importação do dump do próprio usuário. |
+| `tests/`, `apk/test/` | Testes sintéticos e testes JVM. |
+| `tools/` | Detecção de ambiente e verificações do repositório. |
+| `docs/` | Roadmap, auditorias, relatórios e índice de navegação. |
+
+**Nunca envie** cópias do jogo (`.xci`, `.nsp`, `.nca`, `.exefs`, `.romfs`…), chaves
+(`prod.keys`, `title.keys`), arquivos extraídos, código gerado, fontes de sistema
+Switch (`.bfttf`), texturas, modelos, música, textos do jogo, saves ou mods que
+contenham arquivos do jogo. Isso vale também para issues, comentários e PRs.
+
+## Capturas históricas · Galaxy S23, v0090
+
+<details>
+<summary>Ver capturas do projeto de origem, anteriores às correções atuais</summary>
+
+Estas imagens registram o estado antigo, inclusive diálogos e menus sem texto.
+Os números de FPS das capturas não são um benchmark da versão atual.
+
+| Mundo e diálogo | Batalha |
+|---|---|
+| ![Captura histórica do mundo, com diálogo sem texto](screenshots/01-mundo-casa-dialogo.jpg) | ![Captura histórica de uma batalha](screenshots/06-batalha.jpg) |
+
+Mais capturas em [`screenshots/`](screenshots/).
+
+</details>
+
+## Origem, créditos e licenças
+
+Este fork continua o trabalho de
+[CowKillers / letsgo-recomp-android](https://github.com/CowKillers/letsgo-recomp-android).
+Os créditos e as licenças dos autores originais são preservados.
+
+- [raulzrrs / letsgo-recomp](https://github.com/raulzrrs/letsgo-recomp) — recompilação estática original.
+- [peiikai / LASRecomp](https://github.com/peiikai/LASRecomp) — base do runtime.
+- [Nycolazs / LASRecomp-Android-Plus](https://github.com/Nycolazs/LASRecomp-Android-Plus) — referência de port Android.
+- Canal indicado pelo projeto de origem: [emuucheck](https://youtube.com/@emuucheck).
+
+Consulte [`LICENSE`](LICENSE), [`LICENSE-LASRecomp`](LICENSE-LASRecomp),
+[`LICENSES/`](LICENSES/) e [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+A atribuição à AC-Création refere-se ao trabalho neste fork, não à autoria do jogo
+ou de todo o runtime original.
+
+Projeto não oficial, sem afiliação com Nintendo, The Pokémon Company ou Game Freak.
+As marcas pertencem aos respectivos titulares.
