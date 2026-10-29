@@ -52,24 +52,29 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Installer le SDK Android et le NDK
+      - name: Installer le SDK Android
+        # setup-android installe les command-line tools ET met sdkmanager dans le
+        # PATH. Sans cette étape, `sdkmanager` est introuvable sur le runner : le
+        # job échoue sur l'outil, pas sur le code.
+        uses: android-actions/setup-android@v3
+
+      - name: Installer les plateformes et le NDK attendus
         run: |
           # build-apk.sh exige build-tools/35.0.0, platforms/android-34 et le NDK
           # 28.2.13676358 : ce sont les versions que le script attend, pas les
-          # dernieres disponibles.
+          # dernières disponibles.
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0"
           sdkmanager "ndk;28.2.13676358"
 
       - name: Variables d'environnement
         run: |
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Tests de la racine
         # test_stage_buildkit exige LETSGO_KIT_SOURCE, un kit privé et audité qui
         # n'est jamais publié : ce test est donc hors CI, et c'est assumé.
-        run: |
-          python3 -m unittest discover -s tests -v
+        run: python3 -m unittest discover -s tests -v
 
       - name: Tests de l'APK
         run: python3 -m unittest discover -s apk/test -p 'test_*.py' -v
@@ -86,18 +91,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Installer le SDK Android et le NDK
+      - name: Installer le SDK Android
+        uses: android-actions/setup-android@v3
+
+      - name: Installer les plateformes et le NDK attendus
         run: |
-          # build-apk.sh exige build-tools/35.0.0, platforms/android-34 et le NDK
-          # 28.2.13676358 : ce sont les versions que le script attend, pas les
-          # dernieres disponibles.
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0"
           sdkmanager "ndk;28.2.13676358"
 
       - name: Variables d'environnement
         run: |
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Tests d'empaquetage APK
         run: python3 -m unittest discover -s tests -p test_build_apk.py -v
