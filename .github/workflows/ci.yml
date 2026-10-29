@@ -6,17 +6,17 @@
 # n'est pas un défaut. Les jobs ci-dessous sont ceux qui, eux, peuvent tourner sans
 # le jeu.
 #
-# Mesuré le 29/10/2026 sur la branche `publication` (adbf12dd) avec JDK 17, NDK
-# r28c, SDK android-34 : 34 tests à la racine (30 verts, 4 skipped faute de SDL3
+# Mesuré le 29/10/2026 sur `publication` (adbf12dd) avec JDK 17, NDK 28.2,
+# SDK android-34 : 34 tests à la racine (30 verts, 4 skipped faute de SDL3
 # construit) et 8 tests côté APK (8 verts).
 
 name: CI
 
 on:
   push:
-    branches: [publication, main]
+    branches: [publication, master]
   pull_request:
-    branches: [publication, main]
+    branches: [publication, master]
 
 permissions:
   contents: read
@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # --history scanne les commits précédents
 
       - name: Aucun contenu de jeu, clé ou signature
         run: python3 tools/check_no_game_content.py
@@ -40,75 +42,35 @@ jobs:
       - name: Aucun secret
         run: python3 tools/check_no_secrets.py --history
 
-  host-tests:
-    name: Tests synthétiques (hôte)
+  tests:
+    name: Tests synthétiques (JDK / SDK / NDK)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Installer le JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Installer le SDK Android
-        # setup-android installe les command-line tools ET met sdkmanager dans le
-        # PATH. Sans cette étape, `sdkmanager` est introuvable sur le runner : le
-        # job échoue sur l'outil, pas sur le code.
-        uses: android-actions/setup-android@v3
-
-      - name: Installer les plateformes et le NDK attendus
-        run: |
-          # build-apk.sh exige build-tools/35.0.0, platforms/android-34 et le NDK
-          # 28.2.13676358 : ce sont les versions que le script attend, pas les
-          # dernières disponibles.
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0"
-          sdkmanager "ndk;28.2.13676358"
+      # Versions exigées par build-apk.sh (BT=$SDK/build-tools/35.0.0,
+      # platforms/android-34, NDK 28.2.13676358), pas les dernières disponibles.
+      # La v4 accepte les licences et n'exige plus l'ancien paquet `tools`.
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-34
+            build-tools;35.0.0
+            ndk;28.2.13676358
 
       - name: Variables d'environnement
-        run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+        run: echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Tests de la racine
         # test_stage_buildkit exige LETSGO_KIT_SOURCE, un kit privé et audité qui
-        # n'est jamais publié : ce test est donc hors CI, et c'est assumé.
+        # n'est jamais publié : il saute ici, c'est assumé.
         run: python3 -m unittest discover -s tests -v
 
       - name: Tests de l'APK
         run: python3 -m unittest discover -s apk/test -p 'test_*.py' -v
-
-  toolchain-tests:
-    name: Tests outillés (SDK / NDK / JDK)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Installer le JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Installer le SDK Android
-        uses: android-actions/setup-android@v3
-
-      - name: Installer les plateformes et le NDK attendus
-        run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;35.0.0"
-          sdkmanager "ndk;28.2.13676358"
-
-      - name: Variables d'environnement
-        run: |
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
-
-      - name: Tests d'empaquetage APK
-        run: python3 -m unittest discover -s tests -p test_build_apk.py -v
-
-      - name: Tests de construction de la bibliothèque de jeu
-        run: python3 -m unittest discover -s tests -p test_build_gamelib.py -v
-
-      - name: Tests JVM du launcher
-        run: python3 -m unittest discover -s apk/test -p test_locale.py -v
