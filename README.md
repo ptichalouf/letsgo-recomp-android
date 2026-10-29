@@ -2,162 +2,163 @@
 
 [![CI](https://github.com/ptichalouf/letsgo-recomp-android/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ptichalouf/letsgo-recomp-android/actions/workflows/ci.yml)
 
-Port experimental e não oficial de **Pokémon: Let's Go, Eevee!** para Android,
-baseado em recompilação estática. Este fork reúne o runtime, o aplicativo Android,
-os testes e a documentação para continuar o trabalho em comunidade.
+An experimental, unofficial Android port of **Pokémon: Let's Go, Eevee!**, based on
+static recompilation. This fork brings together the runtime, Android application,
+tests, and documentation so the community can continue the work.
 
-**Não é um emulador genérico nem um APK pronto para jogar.** A compilação completa
-precisa de uma cópia do jogo obtida legalmente pelo próprio usuário e das suas
-próprias chaves. Não solicite nem publique esses arquivos aqui.
+**This is not a general-purpose emulator or a ready-to-play APK.** A full build
+requires your own legally obtained copy of the game and your own keys. Do not
+request or upload those files here.
 
-[Estado e próximos passos](docs/ROADMAP.md) · [Compilar](BUILD.md) ·
-[Contribuir](CONTRIBUTING.md) · [Guia para assistentes de IA](AGENTS.md) ·
-[Índice para LLMs](docs/INDEX-FOR-LLMS.md)
+[Status and next steps](docs/ROADMAP.md) · [Build](BUILD.md) ·
+[Contribute](CONTRIBUTING.md) · [Guide for AI coding assistants](AGENTS.md) ·
+[Repository index for LLMs](docs/INDEX-FOR-LLMS.md)
 
-## Configuração automatizada por LLM · AC-Création
+## Automated setup with LLMs · AC-Création
 
-A configuração deste fork e do seu fluxo de contribuição foi automatizada com
-assistentes de IA (LLMs) por **[AC-Création — ac-creation.com](https://ac-creation.com)**:
-documentação, orientação para os assistentes, preparação do ambiente, testes e
-verificações automáticas das contribuições.
+The setup of this fork and its contribution workflow was automated using
+AI assistants (LLMs) by **[AC-Création — ac-creation.com](https://ac-creation.com)**:
+documentation, instructions for coding assistants, environment preparation, tests,
+and automated contribution checks.
 
-Os assistentes podem ler as instruções em [`AGENTS.md`](AGENTS.md), localizar os
-componentes pelo [índice do repositório](docs/INDEX-FOR-LLMS.md) e propor uma PR com
-comandos e resultados reproduzíveis. Se uma ferramenta não carregar `AGENTS.md`
-automaticamente, forneça o arquivo como contexto.
+Coding assistants can read the instructions in [`AGENTS.md`](AGENTS.md), locate
+components through the [repository index](docs/INDEX-FOR-LLMS.md), and propose a PR
+with reproducible commands and results. If a tool does not load `AGENTS.md`
+automatically, provide the file as context.
 
-**Automação não é prova de funcionamento.** A assistência de IA deve ser declarada;
-os testes, a revisão e as limitações da verificação devem acompanhar cada correção.
-A aprovação de uma PR não equivale a testar o jogo em um telefone.
+**Automation is not proof that something works.** AI assistance must be disclosed;
+each fix must include tests, a review, and the limits of its verification.
+Approving a PR is not the same as testing the game on a phone.
 
-## Estado deste fork · 29 de outubro de 2026
+## Fork status · October 29, 2026
 
-| Área | O que está estabelecido |
+| Area | What is established |
 |---|---|
-| Execução do jogo | O projeto de origem documenta boot, mundo 3D, batalhas, menus e saves no Galaxy S23. As capturas abaixo são do build histórico v0090, não uma validação da versão atual. |
-| Aplicativo Android | Código do importador, controles, instalação e ordenação de mods, resolução e perfis Mundo / Combate-Menus presente neste fork. |
-| Desempenho | PRs [#2](https://github.com/ptichalouf/letsgo-recomp-android/pull/2) e [#3](https://github.com/ptichalouf/letsgo-recomp-android/pull/3) integradas: cópias de buffers, suspensão em segundo plano e regressões dos perfis de renderização. A CI não mede FPS. |
-| Compatibilidade dos shaders | Fallback para GPUs sem `shaderInt64` integrado na [PR #5](https://github.com/ptichalouf/letsgo-recomp-android/pull/5), com regressões sintéticas. A legibilidade do texto no telefone ainda precisa de confirmação. |
-| Empacotamento do APK | [PR #4](https://github.com/ptichalouf/letsgo-recomp-android/pull/4) integrada: falhas do ZIP, DEX ausente e bibliotecas nativas obrigatórias ausentes são recusadas antes da publicação do arquivo. |
-| Testes automáticos | Referência da CI após #4: **57 testes na raiz, com 6 ignorados explicitamente, e 8 testes do aplicativo**, sem falhas. Não incluem execução do jogo em aparelho. |
+| Game execution | The upstream project documents boot, the 3D world, battles, menus, and saves on the Galaxy S23. The screenshots below come from the historical v0090 build, not a validation of the current version. |
+| Android application | This fork includes code for the importer, controls, mod installation and ordering, resolution settings, and World / Combat-Menus profiles. |
+| Performance | PRs [#2](https://github.com/ptichalouf/letsgo-recomp-android/pull/2) and [#3](https://github.com/ptichalouf/letsgo-recomp-android/pull/3) are merged: buffer copies, background suspension, and rendering-profile regressions. CI does not measure FPS. |
+| Shader compatibility | The fallback for GPUs without `shaderInt64` is merged in [PR #5](https://github.com/ptichalouf/letsgo-recomp-android/pull/5), with synthetic regression tests. Text readability on a phone still needs confirmation. |
+| APK packaging | [PR #4](https://github.com/ptichalouf/letsgo-recomp-android/pull/4) is merged: ZIP failures, a missing DEX, and missing required native libraries are rejected before the output file is published. |
+| Automated tests | CI reference after #4: **57 root-level tests, with 6 explicitly skipped, and 8 application-side tests**, with no failures. These do not include running the game on a device. |
 
-**Texto invisível continua como problema a validar em aparelho.** O fallback de
-shaders foi integrado, mas um teste no computador não prova o resultado visual.
-[`ISSUES.md`](ISSUES.md) preserva as investigações históricas;
-[`docs/ROADMAP.md`](docs/ROADMAP.md) separa o trabalho integrado da validação pendente.
+**Invisible text remains an issue that needs device verification.** The shader
+fallback is merged, but a host test does not prove the visual result.
+[`ISSUES.md`](ISSUES.md) preserves the historical investigations;
+[`docs/ROADMAP.md`](docs/ROADMAP.md) separates merged work from pending validation.
 
-Este repositório contém o **port recompilado**. Raitchi é outro projeto, com outro
-runtime: resultados, defeitos e correções de um não validam automaticamente o outro.
+This repository contains the **statically recompiled port**. Raitchi is a separate
+project with a different runtime: results, defects, and fixes in one do not
+automatically validate the other.
 
-## Começar
+## Getting started
 
-### Ajudar sem ter o jogo
+### Help without owning the game
 
-Você pode contribuir com documentação, testes sintéticos ou correções isoladas.
-Os testes usam pequenas bibliotecas e arquivos fictícios, sem código nem dados do jogo.
+You can contribute documentation, synthetic tests, or isolated fixes. The tests use
+small libraries and dummy files, without game code or game data.
 
-No Linux x86_64, o ambiente de CI utiliza:
+On Linux x86_64, the CI environment uses:
 
-- Python 3, compiladores C/C++, `make`, `zip` e `unzip`;
+- Python 3, C/C++ compilers, `make`, `zip`, and `unzip`;
 - JDK 17;
-- Android SDK: plataforma `android-34` e build-tools `35.0.0`;
+- Android SDK: platform `android-34` and build-tools `35.0.0`;
 - Android NDK `28.2.13676358`.
 
 ```bash
-# Na raiz de um clone Git completo, com o ambiente instalado:
+# From the root of a full Git clone, with the toolchain already installed:
 source tools/env.sh
 python3 -m unittest discover -s tests -v
 python3 -m unittest discover -s apk/test -p 'test_*.py' -v
 
-# Verificações do conteúdo e da documentação:
+# Repository content and documentation checks:
 python3 tools/check_no_game_content.py
 python3 tools/check_no_secrets.py --history
 python3 tools/check_line_endings.py
 python3 tools/check_doc_links.py
 ```
 
-`tools/env.sh` procura ferramentas já instaladas e configura variáveis; **não instala
-nem baixa nada**. Consulte o [workflow de CI](.github/workflows/ci.yml) para o ambiente
-reproduzível. Alguns testes precisam do histórico Git para comparar o código antes
-e depois de um corretivo: use um clone completo, não apenas o ZIP do repositório.
+`tools/env.sh` locates installed tools and sets environment variables; **it does not
+install or download anything**. See the [CI workflow](.github/workflows/ci.yml) for
+the reproducible environment. Some tests need Git history to compare the code before
+and after a fix: use a full clone, not just the repository ZIP.
 
-Os testes de espera do SDL, do kit privado e da validação SPIR-V são ignorados quando
-os seus pré-requisitos específicos estão ausentes. Um teste ignorado não é um teste
-aprovado; cada execução informa o que ficou sem verificar.
+The SDL wait tests, private-buildkit test, and SPIR-V validation test are skipped
+when their specific prerequisites are missing. A skipped test is not a passed test;
+each run reports what was left unverified.
 
-### Compilar para uso pessoal
+### Build for personal use
 
-Siga o [guia de compilação](BUILD.md), com seu próprio dump, suas próprias chaves e
-as dependências Android preparadas. O guia contém as etapas do runtime, do
-importador, da biblioteca do jogo e do APK.
+Follow the [build guide](BUILD.md), using your own dump, your own keys, and the
+required Android dependencies. The guide covers the runtime, importer, game
+library, and APK build steps.
 
-O comando `GAME=none ./build-apk.sh` monta o aplicativo sem a biblioteca do jogo;
-`GAME=with ./build-apk.sh` exige uma biblioteca pessoal compatível. Um APK que
-contenha código ou dados derivados do jogo **não deve ser publicado**.
+`GAME=none ./build-apk.sh` packages the application without the game library;
+`GAME=with ./build-apk.sh` requires a compatible, privately built game library.
+An APK containing code or data derived from the game **must not be published**.
 
-## Contribuir com ou sem IA
+## Contribute with or without AI
 
-1. Leia a [roadmap](docs/ROADMAP.md) e os [problemas conhecidos](ISSUES.md).
-2. Abra uma [issue](https://github.com/ptichalouf/letsgo-recomp-android/issues) para
-   combinar o escopo, especialmente se for alterar o renderizador.
-3. Trabalhe em uma branch baseada em `publication`: **um problema por PR**.
-4. Inclua a reprodução, o teste antes/depois e as limitações. Não apresente resultados
-   previstos como medições.
-5. Siga [`CONTRIBUTING.md`](CONTRIBUTING.md) e, para assistência de IA,
-   [`AGENTS.md`](AGENTS.md) e [a política de contribuição assistida](.github/AI_CONTRIBUTING.md).
+1. Read the [roadmap](docs/ROADMAP.md) and [known issues](ISSUES.md).
+2. Open an [issue](https://github.com/ptichalouf/letsgo-recomp-android/issues) to agree
+   on the scope, especially if you plan to change the renderer.
+3. Work on a branch based on `publication`: **one problem per PR**.
+4. Include reproduction steps, before/after tests, and limitations. Do not present
+   predicted results as measurements.
+5. Follow [`CONTRIBUTING.md`](CONTRIBUTING.md) and, for AI-assisted work,
+   [`AGENTS.md`](AGENTS.md) and the [AI contribution policy](.github/AI_CONTRIBUTING.md).
 
-As branches `master` e `publication` são protegidas: alterações passam por PR,
-com os dois controles de CI aprovados e a base atualizada. Push direto, exclusão e
-reescrita do histórico são bloqueados. A proteção não concede exceção ao proprietário.
+The `master` and `publication` branches are protected: changes must go through a PR
+with both CI checks passing and an up-to-date base. Direct pushes, branch deletion,
+and history rewrites are blocked. The protection grants no owner exception.
 
-## O que há no repositório
+## Repository contents
 
-| Caminho | Conteúdo |
+| Path | Contents |
 |---|---|
-| `src/runtime/` | Runtime HLE, tradução NVN→Vulkan e integração de plataforma. |
-| `src/tools/` | Ferramentas de geração e diagnóstico. |
-| `apk/` | Aplicativo Android, launcher e controles. |
-| `importer/` | Importação do dump do próprio usuário. |
-| `tests/`, `apk/test/` | Testes sintéticos e testes JVM. |
-| `tools/` | Detecção de ambiente e verificações do repositório. |
-| `docs/` | Roadmap, auditorias, relatórios e índice de navegação. |
+| `src/runtime/` | HLE runtime, NVN→Vulkan translation, and platform integration. |
+| `src/tools/` | Code-generation and diagnostic tools. |
+| `apk/` | Android application, launcher, and controls. |
+| `importer/` | Import of the user's own dump. |
+| `tests/`, `apk/test/` | Synthetic tests and JVM tests. |
+| `tools/` | Environment detection and repository checks. |
+| `docs/` | Roadmap, audits, reports, and navigation index. |
 
-**Nunca envie** cópias do jogo (`.xci`, `.nsp`, `.nca`, `.exefs`, `.romfs`…), chaves
-(`prod.keys`, `title.keys`), arquivos extraídos, código gerado, fontes de sistema
-Switch (`.bfttf`), texturas, modelos, música, textos do jogo, saves ou mods que
-contenham arquivos do jogo. Isso vale também para issues, comentários e PRs.
+**Never upload** copies of the game (`.xci`, `.nsp`, `.nca`, `.exefs`, `.romfs`…), keys
+(`prod.keys`, `title.keys`), extracted files, generated code, Switch system fonts
+(`.bfttf`), textures, models, music, game text, saves, or mods containing game files.
+This also applies to issues, comments, and PRs.
 
-## Capturas históricas · Galaxy S23, v0090
+## Historical screenshots · Galaxy S23, v0090
 
 <details>
-<summary>Ver capturas do projeto de origem, anteriores às correções atuais</summary>
+<summary>View upstream screenshots taken before the current fixes</summary>
 
-Estas imagens registram o estado antigo, inclusive diálogos e menus sem texto.
-Os números de FPS das capturas não são um benchmark da versão atual.
+These images record the older state, including dialogues and menus without text.
+The FPS numbers in these screenshots are not a benchmark of the current version.
 
-| Mundo e diálogo | Batalha |
+| World and dialogue | Battle |
 |---|---|
-| ![Captura histórica do mundo, com diálogo sem texto](screenshots/01-mundo-casa-dialogo.jpg) | ![Captura histórica de uma batalha](screenshots/06-batalha.jpg) |
+| ![Historical world screenshot with a dialogue missing its text](screenshots/01-mundo-casa-dialogo.jpg) | ![Historical battle screenshot](screenshots/06-batalha.jpg) |
 
-Mais capturas em [`screenshots/`](screenshots/).
+More screenshots are available in [`screenshots/`](screenshots/).
 
 </details>
 
-## Origem, créditos e licenças
+## Origins, credits, and licenses
 
-Este fork continua o trabalho de
+This fork continues the work of
 [CowKillers / letsgo-recomp-android](https://github.com/CowKillers/letsgo-recomp-android).
-Os créditos e as licenças dos autores originais são preservados.
+The original authors' credits and licenses are preserved.
 
-- [raulzrrs / letsgo-recomp](https://github.com/raulzrrs/letsgo-recomp) — recompilação estática original.
-- [peiikai / LASRecomp](https://github.com/peiikai/LASRecomp) — base do runtime.
-- [Nycolazs / LASRecomp-Android-Plus](https://github.com/Nycolazs/LASRecomp-Android-Plus) — referência de port Android.
-- Canal indicado pelo projeto de origem: [emuucheck](https://youtube.com/@emuucheck).
+- [raulzrrs / letsgo-recomp](https://github.com/raulzrrs/letsgo-recomp) — original static recompilation.
+- [peiikai / LASRecomp](https://github.com/peiikai/LASRecomp) — runtime foundation.
+- [Nycolazs / LASRecomp-Android-Plus](https://github.com/Nycolazs/LASRecomp-Android-Plus) — Android port reference.
+- Channel linked by the upstream project: [emuucheck](https://youtube.com/@emuucheck).
 
-Consulte [`LICENSE`](LICENSE), [`LICENSE-LASRecomp`](LICENSE-LASRecomp),
-[`LICENSES/`](LICENSES/) e [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
-A atribuição à AC-Création refere-se ao trabalho neste fork, não à autoria do jogo
-ou de todo o runtime original.
+See [`LICENSE`](LICENSE), [`LICENSE-LASRecomp`](LICENSE-LASRecomp),
+[`LICENSES/`](LICENSES/), and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+The AC-Création attribution refers to work on this fork, not authorship of the game
+or the entire original runtime.
 
-Projeto não oficial, sem afiliação com Nintendo, The Pokémon Company ou Game Freak.
-As marcas pertencem aos respectivos titulares.
+This is an unofficial project with no affiliation with Nintendo, The Pokémon Company,
+or Game Freak. All trademarks belong to their respective owners.
