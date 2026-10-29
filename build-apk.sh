@@ -1,6 +1,9 @@
 #!/bin/bash
 # Assemble the Android APK manually. GAME=none is generic; GAME=with requires a matching game library.
 set -euo pipefail
+# Fail before doing any work when the packaging tools are unavailable.
+command -v zip >/dev/null 2>&1 || { echo ZIP_ABSENT >&2; exit 1; }
+command -v unzip >/dev/null 2>&1 || { echo UNZIP_ABSENT >&2; exit 1; }
 cd "$(dirname "$0")"
 ROOT="$PWD"
 if [ -n "${LETSGO_KIT_SOURCE:-}" ]; then
@@ -106,7 +109,8 @@ if [ -n "${LETSGO_VERSION_CODE:-}" ]; then version+=(--version-code "$LETSGO_VER
     2>"$OUT/aapt.log" || { echo AAPT_FAIL; tail -10 "$OUT/aapt.log"; exit 1; }
 cp "$OUT/base.apk" "$OUT/unsigned.apk"
 cp "$OUT/dex/classes.dex" "$OUT/classes.dex"
-(cd "$OUT"; zip -q unsigned.apk classes.dex; zip -q -0 unsigned.apk lib/arm64-v8a/*.so)
+(cd "$OUT" && zip -q unsigned.apk classes.dex && zip -q -0 unsigned.apk lib/arm64-v8a/*.so) \
+    || { echo ZIP_FAIL >&2; exit 1; }
 
 # 5. align + sign, then check the FINAL archive, not just the staging directory.
 "$BT/zipalign" -f -P 16 4 "$OUT/unsigned.apk" "$OUT/aligned.apk" 2>>"$OUT/aapt.log" || { echo ALIGN_FAIL; exit 1; }
@@ -115,7 +119,15 @@ cp "$OUT/dex/classes.dex" "$OUT/classes.dex"
     --out "$OUT/LetsGoRecomp-android.apk" "$OUT/aligned.apk" 2>>"$OUT/aapt.log" || { echo SIGN_FAIL; exit 1; }
 "$BT/apksigner" verify --print-certs "$OUT/LetsGoRecomp-android.apk" > "$OUT/signature.txt"
 grep -m1 SHA-256 "$OUT/signature.txt"
-unzip -Z1 "$OUT/LetsGoRecomp-android.apk" > "$OUT/entries.txt"
+unzip -tq "$OUT/LetsGoRecomp-android.apk" > "$OUT/archive-check.txt" 2>&1 \
+    || { echo APK_ZIP_INVALID >&2; exit 1; }
+unzip -Z1 "$OUT/LetsGoRecomp-android.apk" > "$OUT/entries.txt" \
+    || { echo APK_ZIP_INVALID >&2; exit 1; }
+grep -qx 'classes.dex' "$OUT/entries.txt" || { echo APK_DEX_MISSING >&2; exit 1; }
+for library in liblasrecomp.so libSDL3.so libc++_shared.so; do
+    grep -qxF "lib/arm64-v8a/$library" "$OUT/entries.txt" \
+        || { echo "APK_NATIVE_MISSING: $library" >&2; exit 1; }
+done
 if [ "$GAME" = none ]; then
     if grep -qE '(^|/)liblasgame\.so$' "$OUT/entries.txt"; then
         echo APK_NO_GAME_FAIL; exit 1
