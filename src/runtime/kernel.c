@@ -7,6 +7,7 @@
 
 #include "hle.h"
 #include "kernel.h"
+#include "lifecycle.h"
 #ifdef _WIN32
 #include "platform/windows_threads.h"
 #endif
@@ -658,6 +659,10 @@ static void *thread_dump_main(void *arg) {
 }
 
 static void svc_entry(Cpu *c, uint32_t imm, uint64_t pc) {
+    // In the background every guest thread stops at its next SVC (timed waits, polls), not only at SleepThread: one
+    // guest thread kept ~50 % of a core busy on the Fold4 through its timed waits (t_8cc15f32). Guest code holds no
+    // host lock here; one atomic read per SVC in the foreground.
+    rt_background_wait();
     if (prof_svc < 0) prof_svc = ENV("LARECOMP_PROF_SVC") != NULL;
     if (prof_svc && imm < 0x80) {
         uint64_t a0 = c->x[0], a1 = c->x[1], a2 = c->x[2], a3 = c->x[3], lr = c->x[30];
@@ -756,6 +761,9 @@ static void svc_impl(Cpu *c, uint32_t imm, uint64_t pc) {
     }
     case 0x0A: longjmp(t_cur->unwind, 1);  // ExitThread: back to thread_main, which signals the thread object
     case 0x0B: {  // SleepThread (in slices of at most 50 ms: a reboot doesn't wait out a long sleep)
+        // In the background the game's other threads stop here too: with the presenting thread held (nvn/objects.c)
+        // they kept yielding / sleeping in a loop, ~70 % of a core on the Fold4 (t_8cc15f32). No kernel lock is held.
+        rt_background_wait();
         int64_t ns = (int64_t)x[0];
         if (ns <= 0) { sched_yield(); break; }
         for (uint64_t end = plat_now_ns() + (uint64_t)ns, now; !g_rt_unwind && (now = plat_now_ns()) < end;) {
