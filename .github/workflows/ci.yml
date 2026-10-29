@@ -1,0 +1,103 @@
+# CI — tests synthétiques, sans jeu ni device
+#
+# Aucun secret, aucune clé, aucun fichier de jeu n'est utilisé ici.
+#
+# Le build complet exige un dump personnel : il ne peut pas être fait en CI, et ce
+# n'est pas un défaut. Les jobs ci-dessous sont ceux qui, eux, peuvent tourner sans
+# le jeu.
+#
+# Mesuré le 29/10/2026 sur la branche `publication` (adbf12dd) avec JDK 17, NDK
+# r28c, SDK android-34 : 34 tests à la racine (30 verts, 4 skipped faute de SDL3
+# construit) et 8 tests côté APK (8 verts).
+
+name: CI
+
+on:
+  push:
+    branches: [publication, main]
+  pull_request:
+    branches: [publication, main]
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    name: Garde-fous du dépôt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Aucun contenu de jeu, clé ou signature
+        run: python3 tools/check_no_game_content.py
+
+      - name: Fins de ligne (LF sauf .bat/.ps1)
+        run: python3 tools/check_line_endings.py
+
+      - name: Les liens des documents pointent quelque part
+        run: python3 tools/check_doc_links.py
+
+      - name: Aucun secret
+        run: python3 tools/check_no_secrets.py --history
+
+  host-tests:
+    name: Tests synthétiques (hôte)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer le JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer le SDK Android et le NDK
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "ndk;28.2.13676358"
+
+      - name: Variables d'environnement
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Tests de la racine
+        # test_stage_buildkit exige LETSGO_KIT_SOURCE, un kit privé et audité qui
+        # n'est jamais publié : ce test est donc hors CI, et c'est assumé.
+        run: |
+          python3 -m unittest discover -s tests -v
+
+      - name: Tests de l'APK
+        run: python3 -m unittest discover -s apk/test -p 'test_*.py' -v
+
+  toolchain-tests:
+    name: Tests outillés (SDK / NDK / JDK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer le JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer le SDK Android et le NDK
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "ndk;28.2.13676358"
+
+      - name: Variables d'environnement
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Tests d'empaquetage APK
+        run: python3 -m unittest discover -s tests -p test_build_apk.py -v
+
+      - name: Tests de construction de la bibliothèque de jeu
+        run: python3 -m unittest discover -s tests -p test_build_gamelib.py -v
+
+      - name: Tests JVM du launcher
+        run: python3 -m unittest discover -s apk/test -p test_locale.py -v

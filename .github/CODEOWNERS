@@ -1,0 +1,20 @@
+# Fichiers qui demandent une relecture attentive : ce sont des points chauds du
+# rendu ou des chemins qui cassent des choses silencieusement.
+# Le propriétaire de chaque zone est celui qui peut arbitrer les conflits.
+
+# Rendu — points chauds (traducteur de shaders, soumissions Vulkan, cache de textures)
+/src/runtime/nvn/maxwell/translate.c  @ptichalouf
+/src/runtime/nvn/vulkan/exec.c        @ptichalouf
+/src/runtime/nvn/vulkan/textures.c    @ptichalouf
+/src/runtime/nvn/cmdbuf.c             @ptichalouf
+
+# Noyau et threads invités — une régression ici se voit comme un crash ou un gel
+/src/runtime/kernel.c                  @ptichalouf
+/src/runtime/lifecycle.c               @ptichalouf
+
+# Publication atomique et garde-fous de build — ne pas contourner
+/src/runtime/native/runtime/native_prepare.c  @ptichalouf
+/build-apk.sh                         @ptichalouf
+
+# Le dossier qui contient le port Android
+/apk/                                 @ptichalouf

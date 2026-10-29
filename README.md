@@ -79,6 +79,38 @@ cd src && make gen ARCH=aarch64
 
 Detalhes, pré-requisitos e armadilhas: **[BUILD.md](BUILD.md)**.
 
+## Como contribuir
+
+Este repositório aceita contribuições — e em particular aceita contribuições feitas
+com um assistente de codage (LLM). O ponto de partida:
+
+| O que você quer | Onde está |
+|---|---|
+| **Quer ajudar (humano ou IA)** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — regras, formato de PR, o que nunca postar |
+| **Usando uma IA** | [`AGENTS.md`](AGENTS.md) — comandos, limites e como provar uma correção |
+| **Índice para LLMs** | [`docs/INDEX-FOR-LLMS.md`](docs/INDEX-FOR-LLMS.md) — mapa do repositório |
+| **O que funciona e o que falta** | [`docs/ROADMAP.md`](docs/ROADMAP.md) — fila de problemas com critério de aceitação |
+| **Problemas já conhecidos** | [`ISSUES.md`](ISSUES.md) — inclusive o que já foi **eliminado por prova** |
+
+Pontos que economizam tempo a todo mundo:
+
+- **Nunca** poste o jogo, chaves, saves ou assets do jogo. O repositório não deve
+  contê-los, e o CI recusa a build se aparecerem.
+- O build completo **exige o seu dump** — isso não é um bug e ninguém (nem uma IA)
+  consegue contorná-lo. Mas os testes sintéticos rodam sem jogo:
+  `python3 -m unittest discover -s tests -v`.
+- Uma PR = **um** problema delimitado. Não reescreva pontos quentes do renderizador
+  (`translate.c`, `exec.c`) sem antes comentar a issue de acompanhamento.
+- Abra a PR em **rascunho**: quem decide a fusão é o mantenedor.
+
+Toolchain para os testes (JDK 17, SDK Android, NDK r28c ou mais novo):
+
+```bash
+source tools/env.sh    # mostra o que encontrou; só exporta variáveis, não instala nada
+python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s apk/test -p 'test_*.py' -v
+```
+
 ## Créditos
 
 - [raulzrrs / letsgo-recomp](https://github.com/raulzrrs/letsgo-recomp) — recompilação estática original
