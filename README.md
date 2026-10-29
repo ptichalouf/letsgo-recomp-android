@@ -9,6 +9,34 @@ Testado no Galaxy S23 (Snapdragon 8 Gen 2, Adreno 740, Android 16).
 >
 > 📺 Canal da autora no YouTube: https://youtube.com/@emuucheck
 
+## Projeto e setup por LLM — AC-Création
+
+Este repositório é mantido e evoluído pela **AC-Création**
+([ac-creation.com](https://ac-creation.com)).
+
+A AC-Création instala e configura, para cada cliente, uma IA que faz um trabalho
+preciso — aqui, um assistente de codagem que mantém este port. O setup é fait
+**par LLM** : un agent lit le dépôt, monte la toolchain, lance les tests et prépare
+les corrections, avec les règles de preuve écrites dans le dépôt lui-même
+([`AGENTS.md`](AGENTS.md)) et validées par la CI.
+
+O que isso significa para quem chega aqui:
+
+- O repositório é **LLM-native** — [`AGENTS.md`](AGENTS.md) é lu nativement par
+  Codex, Claude Code, Cursor, Copilot, Aider et Zed. Ce n'est pas une documentation
+  humaine convertie en prompt : ce sont les règles du travail.
+- A **toolchain é détectée, pas devinée** : [`tools/env.sh`](tools/env.sh) trouve
+  JDK, SDK, NDK et le kit de build et exporte les variables. Il n'installe rien.
+- Les **tests synthétiques tournent sans jeu et sans appareil** — 57 tests à la
+  racine, 8 du APK. La CI refuse toute PR qui introduit du contenu de jeu, une clé,
+  un secret ou un lien mort.
+- Le travail est **vérifié avant d'être annoncé** : une correction entre par PR, avec
+  la commande de preuve et le code de sortie dans le corps de la PR.
+
+Si vous voulez que l'AC-Création fasse la même chose pour votre projet — une IA
+installée chez vous ou hébergée, cadrée sur un travail précis — :
+**[ac-creation.com](https://ac-creation.com)**.
+
 ## O que este repositório contém
 
 | Pasta/arquivo | Conteúdo |
@@ -22,6 +50,10 @@ Testado no Galaxy S23 (Snapdragon 8 Gen 2, Adreno 740, Android 16).
 | `BUILD.md` | **Tutorial completo de build**: o que você precisa, passo a passo |
 | `ISSUES.md` | **Problemas conhecidos**: o que funciona, o que não funciona, e o que já foi investigado |
 | `RELATORIO-ATUALIZADO.md` | Relatório detalhado do estado do projeto (v0090) |
+| `AGENTS.md` | **Regras para assistentes de codagem**: comandos, limites, como provar uma correção |
+| `CONTRIBUTING.md` | Regras de contribuição para humanos e para IAs |
+| `docs/ROADMAP.md` | Estado verificado, correções recentes, fila de problemas abertos |
+| `docs/INDEX-FOR-LLMS.md` | Mapa do repositório para LLMs |
 
 ## O que este repositório NÃO contém (de propósito)
 
@@ -33,15 +65,21 @@ Testado no Galaxy S23 (Snapdragon 8 Gen 2, Adreno 740, Android 16).
 Sem o código gerado e o dump, o projeto **não compila sozinho**. O [BUILD.md](BUILD.md)
 explica como gerar tudo a partir do seu próprio dump.
 
-## Estado atual (v0090)
+## Estado atual
 
 **Funciona:** boot, mundo 3D, mapa, batalhas, menus, save, touch e controle físico,
-importador de NSP, resolução escalável (480p–1080p), ~22–30 fps.
+importador de NSP, resolução escalável (480p–1080p), mods instaláveis com ordem escolhida
+pelo usuário, perfis de renderização Mundo / Combate-Menus, teclado Android corrigido,
+~22–30 fps.
 
 **Não funciona:** **o texto é invisível** em menus, diálogos e HUD. É o problema principal
 e está documentado em detalhes em [ISSUES.md](ISSUES.md) — incluindo tudo o que já foi
 eliminado por prova (cull, depth, write_mask, scissor, matriz de projeção, atributo `a0`,
-janela de cópia de memória) e o teste decisivo atual (v0090, VS_RANGE_DIAG).
+janela de cópia de memória).
+
+O estado completo, medido e datado, está em **[`docs/ROADMAP.md`](docs/ROADMAP.md)**:
+o que foi verificado em aparelho, o que foi corrigido em 28–29/10, e a fila de problemas
+abertos com o critério de aceitação de cada um.
 
 ### Screenshots — estado atual (Galaxy S23, v0090)
 
