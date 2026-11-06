@@ -98,11 +98,13 @@ jobs:
           fi
           echo "VER=$ver" >> "$GITHUB_ENV"
           echo "STAGING=$RUNNER_TEMP/staging" >> "$GITHUB_ENV"
+          echo "TESTVAR=$RUNNER_TEMP/test-variant" >> "$GITHUB_ENV"
           df -h / | tail -1
 
       - name: Repository guards
         run: |
-          python3 tools/check_no_game_content.py
+          python3 tools/check_no_game_content.py .
+          python3 tools/check_letsgo_content.py
           python3 tools/check_no_secrets.py
 
       - uses: actions/cache@v4
@@ -160,7 +162,42 @@ jobs:
           export LETSGO_APK_DEST="$STAGING/LetsGoRecomp-android-$VER.apk"
           bash build-apk.sh | tee build-apk.log
           grep -qx APK_NO_GAME_OK build-apk.log
+          # Side-by-side test variant (CI runs only, never a release): same sources, applicationId
+          # com.letsgorecomp.ci and label "Let's Go Recomp (CI)", so it installs next to the release package.
+          # It goes to its own directory, never into $STAGING (the release pipeline ships exactly one APK from there).
+          if [ "${{ inputs.release }}" != true ]; then
+            mkdir -p "$TESTVAR"
+            LETSGO_APP_ID=com.letsgorecomp.ci LETSGO_LABEL_SUFFIX=' (CI)' \
+              LETSGO_APK_DEST="$TESTVAR/LetsGoRecomp-android-$VER-ci.apk" \
+              bash build-apk.sh | tee build-apk-ci.log
+            grep -qx APK_NO_GAME_OK build-apk-ci.log
+            grep -qx "APK_APP_ID=com.letsgorecomp.ci APK_LABEL_SUFFIX=' (CI)'" build-apk-ci.log
+          fi
           rm -f "$LETSGO_KEYSTORE"
+
+      - name: Package ids (release = com.letsgorecomp, CI variant = com.letsgorecomp.ci)
+        run: |
+          rel=$(ls "$STAGING"/*.apk); [ "$(ls "$STAGING"/*.apk | wc -l)" = 1 ]
+          pkg() { "$BT/aapt2" dump packagename "$1"; }
+          [ "$(pkg "$rel")" = com.letsgorecomp ] || { echo "::error::release package is $(pkg "$rel")"; exit 1; }
+          "$BT/aapt2" dump badging "$rel" | grep -E "^(package: name|application: label)"
+          "$BT/aapt2" dump badging "$rel" | grep -qF "application: label='Let's Go Recomp'"
+          if [ "${{ inputs.release }}" != true ]; then
+            ci=$(ls "$TESTVAR"/*.apk)
+            [ "$(pkg "$ci")" = com.letsgorecomp.ci ] || { echo "::error::CI package is $(pkg "$ci")"; exit 1; }
+            "$BT/aapt2" dump badging "$ci" | grep -E "^(package: name|application: label)"
+            "$BT/aapt2" dump badging "$ci" | grep -qF "application: label='Let's Go Recomp (CI)'"
+            # Resources stay in the original package (Theme/Txt look them up with Txt.RES_PKG, not getPackageName()),
+            # and the activities must keep their com.letsgorecomp class names (JNI symbols).
+            res=$("$BT/aapt2" dump resources "$ci"); echo "$res" | grep -E '^Package name=' || true
+            grep -qE '^Package name=com\.letsgorecomp( |$)' <<<"$res"   # resources stay in the original package
+            grep -q 'color/lg_bg' <<<"$res"
+            xml=$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$ci")
+            grep -q 'com.letsgorecomp.LetsGoActivity' <<<"$xml"
+            grep -q 'com.letsgorecomp.GameBuild' <<<"$xml"
+            "$BT/apksigner" verify "$ci"
+            (cd "$TESTVAR" && sha256sum *.apk > SHA256SUMS-ci && cat SHA256SUMS-ci)
+          fi
 
       - name: Corresponding source + SHA256SUMS
         run: |
@@ -187,5 +224,15 @@ jobs:
         with:
           name: letsgo-apk-${{ env.VER }}
           path: ${{ env.STAGING }}/
+          retention-days: 14
+          compression-level: 0
+
+      # Side-by-side test build (applicationId com.letsgorecomp.ci). Deliberately NOT named letsgo-apk-*: the release
+      # job downloads that pattern and must only ever see the one release APK.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.release }}
+        with:
+          name: letsgo-test-apk-ci-${{ env.VER }}
+          path: ${{ env.TESTVAR }}/
           retention-days: 14
           compression-level: 0

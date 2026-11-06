@@ -4,11 +4,13 @@ package com.letsgorecomp;
 // values/ remains the Portuguese default; values-en|fr contain the existing translations.
 class Txt {
     private static android.content.res.Resources res;
-    private static String pkg = "com.letsgorecomp";
+    // The resource package is the one aapt2 compiled (the manifest package), NOT getPackageName(): the CI test build
+    // renames the applicationId to com.letsgorecomp.ci (build-apk.sh LETSGO_APP_ID) but its resources stay here.
+    static final String RES_PKG = "com.letsgorecomp";
+    private static final String pkg = RES_PKG;
 
     static void init(android.content.Context ctx) {
         try {
-            pkg = ctx.getPackageName();
             android.content.res.Configuration c =
                 new android.content.res.Configuration(ctx.getResources().getConfiguration());
             java.util.Locale locale = c.getLocales().get(0);

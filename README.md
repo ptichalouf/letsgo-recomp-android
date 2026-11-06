@@ -1,17 +1,22 @@
 # Let's Go Eevee · Android
 
-[![CI](https://github.com/ptichalouf/letsgo-recomp-android/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ptichalouf/letsgo-recomp-android/actions/workflows/ci.yml)
+[![CI](https://github.com/AC-CREATION-AI/letsgo-recomp-android/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/AC-CREATION-AI/letsgo-recomp-android/actions/workflows/ci.yml)
 
 An experimental, unofficial Android port of **Pokémon: Let's Go, Eevee!**, based on
 static recompilation. This fork brings together the runtime, Android application,
 tests, and documentation so the community can continue the work.
+
+**This is an autonomous fork maintained by [AC-Création](https://ac-creation.com)** (it no longer tracks
+or sends anything to the upstream repository). The original authors stay credited: CowKillers (the Android
+port this fork continues), raulzito12345rrs (the static recompilation) and Peiikai (LASRecomp, the runtime
+foundation). See [Origins, credits, and licenses](#origins-credits-and-licenses).
 
 **This is not a general-purpose emulator or a ready-to-play APK.** A full build
 requires your own legally obtained copy of the game and your own keys. Do not
 request or upload those files here.
 
 [Status and next steps](docs/ROADMAP.md) · [Build](BUILD.md) ·
-[Contribute](CONTRIBUTING.md) · [Guide for AI coding assistants](AGENTS.md) ·
+[Contribute](CONTRIBUTING.md) · [Guide for AI coding assistants](AGENTS.md) · [Test builds](#test-build-side-by-side-with-the-release) ·
 [Repository index for LLMs](docs/INDEX-FOR-LLMS.md)
 
 ## Automated setup with LLMs · AC-Création
@@ -36,9 +41,9 @@ Approving a PR is not the same as testing the game on a phone.
 |---|---|
 | Game execution | The upstream project documents boot, the 3D world, battles, menus, and saves on the Galaxy S23. The screenshots below come from the historical v0090 build, not a validation of the current version. |
 | Android application | This fork includes code for the importer, controls, mod installation and ordering, resolution settings, and World / Combat-Menus profiles. |
-| Performance | PRs [#2](https://github.com/ptichalouf/letsgo-recomp-android/pull/2) and [#3](https://github.com/ptichalouf/letsgo-recomp-android/pull/3) are merged: buffer copies, background suspension, and rendering-profile regressions. CI does not measure FPS. |
-| Shader compatibility | The fallback for GPUs without `shaderInt64` is merged in [PR #5](https://github.com/ptichalouf/letsgo-recomp-android/pull/5), with synthetic regression tests. Text readability on a phone still needs confirmation. |
-| APK packaging | [PR #4](https://github.com/ptichalouf/letsgo-recomp-android/pull/4) is merged: ZIP failures, a missing DEX, and missing required native libraries are rejected before the output file is published. |
+| Performance | PRs [#2](https://github.com/AC-CREATION-AI/letsgo-recomp-android/pull/2) and [#3](https://github.com/AC-CREATION-AI/letsgo-recomp-android/pull/3) are merged: buffer copies, background suspension, and rendering-profile regressions. CI does not measure FPS. |
+| Shader compatibility | The fallback for GPUs without `shaderInt64` is merged in [PR #5](https://github.com/AC-CREATION-AI/letsgo-recomp-android/pull/5), with synthetic regression tests. Text readability on a phone still needs confirmation. |
+| APK packaging | [PR #4](https://github.com/AC-CREATION-AI/letsgo-recomp-android/pull/4) is merged: ZIP failures, a missing DEX, and missing required native libraries are rejected before the output file is published. |
 | Automated tests | CI reference after #4: **57 root-level tests, with 6 explicitly skipped, and 8 application-side tests**, with no failures. These do not include running the game on a device. |
 
 **Invisible text remains an issue that needs device verification.** The shader
@@ -71,7 +76,8 @@ python3 -m unittest discover -s tests -v
 python3 -m unittest discover -s apk/test -p 'test_*.py' -v
 
 # Repository content and documentation checks:
-python3 tools/check_no_game_content.py
+python3 tools/check_no_game_content.py .
+python3 tools/check_letsgo_content.py
 python3 tools/check_no_secrets.py --history
 python3 tools/check_line_endings.py
 python3 tools/check_doc_links.py
@@ -96,12 +102,20 @@ library, and APK build steps.
 `GAME=with ./build-apk.sh` requires a compatible, privately built game library.
 An APK containing code or data derived from the game **must not be published**.
 
+## Test build side by side with the release
+
+Every CI run of the `APK` workflow also uploads a **test APK** (artifact `letsgo-test-apk-ci-<version>`) with the
+application id `com.letsgorecomp.ci` and the label "Let's Go Recomp (CI)". It installs next to the release
+package `com.letsgorecomp` without replacing it (separate data and settings). It is signed with a throwaway key
+(not for distribution), contains no game, and is built by `LETSGO_APP_ID=com.letsgorecomp.ci
+LETSGO_LABEL_SUFFIX=' (CI)' bash build-apk.sh`. Releases always keep `com.letsgorecomp`.
+
 ## Contribute with or without AI
 
 1. Read the [roadmap](docs/ROADMAP.md) and [known issues](ISSUES.md).
-2. Open an [issue](https://github.com/ptichalouf/letsgo-recomp-android/issues) to agree
+2. Open an [issue](https://github.com/AC-CREATION-AI/letsgo-recomp-android/issues) to agree
    on the scope, especially if you plan to change the renderer.
-3. Work on a branch based on `publication`: **one problem per PR**.
+3. Work on a branch based on `master`: **one problem per PR**.
 4. Include reproduction steps, before/after tests, and limitations. Do not present
    predicted results as measurements.
 5. Follow [`CONTRIBUTING.md`](CONTRIBUTING.md) and, for AI-assisted work,

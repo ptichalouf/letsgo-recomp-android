@@ -23,7 +23,36 @@ Screenshots and short videos of the game in bug reports are welcome.
 needs the user's own legally obtained dump. This is by design, not a bug — and it
 means some tasks simply cannot be verified here. Say so instead of working around it.
 
-## Reporting problems
+## Set up your agent
+
+Give your agent this repo and tell it to read [`AGENTS.md`](AGENTS.md). Then:
+
+1. **Tools to install**: run `tools/setup.sh --check`. It lists what is missing with the command to fix it
+   (Linux, macOS; Windows through WSL2). Reporting and performance paths need no build tools.
+2. **Skills to install for your agent** (the folder [`skills/`](skills/)):
+   - Claude Code: `mkdir -p .claude && cp -r skills .claude/skills` (or `cp -r skills/* ~/.claude/skills/`).
+   - Hermes Agent: `mkdir -p .agents && cp -r skills .agents/skills`, then `hermes skills trust` in the repo.
+     Or add this repo's `skills/` folder to `skills.external_dirs` in `~/.hermes/config.yaml`.
+   - Others: point the agent at `skills/<name>/SKILL.md`.
+
+## Four ways to contribute
+
+1. **Report an issue**: a crash, a black screen, a wrong sound. Use the `report-device-issue` skill or the Bug
+   report form (see below).
+2. **Fix a bug**: find or open an issue and comment to claim it, branch from `master`, one bounded problem per PR,
+   synthetic test, draft PR with the template.
+3. **Add a feature**: open a Feature request issue first and agree the scope, especially for the renderer hot
+   spots; then proceed as in 2.
+4. **Help performance**: use the `perf-report` skill or the Performance report form. Same scene, same protocol,
+   same settings, so reports are comparable. Displayed FPS is not game speed.
+
+## Test builds
+
+Every CI run uploads a test APK (artifact `letsgo-test-apk-ci-<version>`, application id `com.letsgorecomp.ci`,
+label "Let's Go Recomp (CI)") that installs next to the release package. It has no game and is signed with a
+throwaway key. Device testers should say which build (commit SHA) they ran.
+
+## Reporting problems (path 1)
 
 Open an issue with:
 
@@ -36,7 +65,7 @@ Open an issue with:
 Check `ISSUES.md` first — it records what has **already been eliminated by proof**, so
 you do not repeat an investigation that is already closed.
 
-## Code
+## Code (paths 2 and 3)
 
 - Build and test as in [`BUILD.md`](BUILD.md) and [`docs/HOWTO-BUILD.md`](docs/HOWTO-BUILD.md).
 - Every fix gets a line in `docs/HISTORICO.md` (symptom, diagnosis, cause, fix), and
@@ -80,9 +109,10 @@ bash src/tools/teste60.sh
 3. **The fix**: minimal, and why this approach rather than another.
 4. **The limits**: what you did **not** verify (device, other GPU, other version).
 
-If a coding assistant helped, say so plainly in the pull request, without model or
-tool names and without signature trailers. **Assistance is not independent approval**;
-the review stays human.
+If a coding assistant helped, say so in the pull request with its name and model (`Agent: <name> · Model: <id>`,
+also the last line of the commit message body). Assistance is not independent approval: a different reviewer
+approves, and nobody merges their own pull request. "Tested on device" needs a device report from a named tester;
+passing CI is not a device test. You are responsible for what your agent submits; no bulk or unsolicited automated PRs.
 
 ### Do not merge your own pull request
 

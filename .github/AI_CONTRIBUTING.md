@@ -28,8 +28,8 @@ we expect, and what we will not do.
 - **A "performance fix" that degrades quality** or adds a wait to make a number go
   down. Displayed fps is not game speed: tell the two apart in the evidence.
 - **Merging your own pull request.** Open it as a draft; a maintainer merges.
-- **Naming the model or the tool in the pull request.** Simply mention that you used
-  an assistant. **Assistance is not independent approval** — the review stays human.
+- **Hiding the assistance.** Every commit and PR written by an agent carries
+  `Agent: <name> · Model: <id>`. **Assistance is not independent approval** — the review stays human.
 
 ## What the agent must read before acting
 
