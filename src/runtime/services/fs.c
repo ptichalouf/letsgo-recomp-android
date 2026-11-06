@@ -136,6 +136,12 @@ static int64_t dir_lookup(const uint8_t *dm, uint64_t dsz, const char *path) {
     return cur;
 }
 
+static int newfile_cmp(const void *a, const void *b) {  // by path, then by mod (the first active mod first)
+    const NewFile *x = a, *y = b;
+    int c = strcmp(x->rel, y->rel);
+    return c ? c : x->mod - y->mod;
+}
+
 static void add_new_files(int fd, const uint64_t *h, const uint8_t *dmeta, uint64_t dsz, uint64_t fsz) {
     int nmods = mods_active_count();  // the active mods' new files (runtime/mods.h), in the player's order
     if (!nmods) return;
@@ -150,18 +156,17 @@ static void add_new_files(int fd, const uint64_t *h, const uint8_t *dmeta, uint6
         for (int j = from; j < n; j++) nf[j].mod = k;
     }
     free(known);
-    // a new file several mods add: the copy of the first mod in the list (nf is in list order), the others hidden
+    // a new file several mods add: the copy of the first mod in the list, the others hidden (logged). Sorted by path
+    // (then by mod), so the extended table does not depend on the order the disk lists the folders in.
+    if (n) qsort(nf, n, sizeof *nf, newfile_cmp);
     int kept = 0;
     for (int j = 0; j < n; j++) {
-        int first = -1;
-        for (int i = 0; i < kept && first < 0; i++) if (!strcmp(nf[i].rel, nf[j].rel)) first = i;
-        if (first >= 0) {
+        if (kept && !strcmp(nf[kept - 1].rel, nf[j].rel)) {
             LOG("[mods] conflict: %s is in '%s' (#%d, served) and '%s' (#%d, hidden)\n", nf[j].rel,
-                mods_active_name(nf[first].mod), nf[first].mod + 1, mods_active_name(nf[j].mod), nf[j].mod + 1);
+                mods_active_name(nf[kept - 1].mod), nf[kept - 1].mod + 1, mods_active_name(nf[j].mod), nf[j].mod + 1);
             continue;
         }
-        if (kept != j) nf[kept] = nf[j];
-        kept++;
+        nf[kept++] = nf[j];
     }
     n = kept;
     if (!n) { free(nf); return; }

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>  // rmdir (bionic does not pull it in transitively)
 
@@ -34,27 +35,36 @@ static const char *mods_dir(void) {
 // made for both games (atmosphere/titles/<Pikachu>/ and <Eevee>/) are searched under the set-up game's title id first.
 #define EEVEE_TITLE "0100187003A36000"
 #define PIKACHU_TITLE "010003F003A34000"
-static bool find_romfs(const char *dir, int depth, char *out, size_t cap) {
+// strict: never inside a folder named after the other version's title id. A mod made for both versions
+// ("Pokemon Lets Go Eevee/0100187003A36000/romfs" next to "Pokemon Lets Go Pikachu/010003F003A34000/romfs") gave the
+// first folder the disk listed, so the other version's files could be served.
+static bool find_romfs_in(const char *dir, int depth, bool strict, char *out, size_t cap) {
     char p[1024];
     snprintf(p, sizeof p, "%s/romfs", dir);  // (RomFs / romfs: Windows names ignore case)
     if (is_dir(p)) { snprintf(out, cap, "%s", p); return true; }
     if (depth <= 0) return false;
     const char *name = game_name("extracted/exefs");
     bool pikachu = name && !strcmp(name, "Pikachu");
-    snprintf(p, sizeof p, "%s/%s", dir, pikachu ? PIKACHU_TITLE : EEVEE_TITLE);
-    if (is_dir(p) && find_romfs(p, depth - 1, out, cap)) return true;
-    snprintf(p, sizeof p, "%s/%s", dir, pikachu ? EEVEE_TITLE : PIKACHU_TITLE);
-    if (is_dir(p) && find_romfs(p, depth - 1, out, cap)) return true;
+    const char *mine = pikachu ? PIKACHU_TITLE : EEVEE_TITLE, *other = pikachu ? EEVEE_TITLE : PIKACHU_TITLE;
+    snprintf(p, sizeof p, "%s/%s", dir, mine);
+    if (is_dir(p) && find_romfs_in(p, depth - 1, strict, out, cap)) return true;
+    snprintf(p, sizeof p, "%s/%s", dir, other);
+    if (!strict && is_dir(p) && find_romfs_in(p, depth - 1, strict, out, cap)) return true;
     DIR *d = opendir(dir);
     if (!d) return false;
     bool found = false;
     for (struct dirent *e; !found && (e = readdir(d));) {
-        if (e->d_name[0] == '.') continue;
+        if (e->d_name[0] == '.' || (strict && !strcasecmp(e->d_name, other))) continue;
         snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
-        if (is_dir(p)) found = find_romfs(p, depth - 1, out, cap);
+        if (is_dir(p)) found = find_romfs_in(p, depth - 1, strict, out, cap);
     }
     closedir(d);
     return found;
+}
+
+// The romfs/ folder of a mod: this version's if the mod has one, else any.
+static bool find_romfs(const char *dir, int depth, char *out, size_t cap) {
+    return find_romfs_in(dir, depth, true, out, cap) || find_romfs_in(dir, depth, false, out, cap);
 }
 
 int mods_list(char names[][128], int max) {
@@ -76,7 +86,8 @@ int mods_list(char names[][128], int max) {
 // LARECOMP_MODS: the active mods' folder names separated by '|', HIGHEST PRIORITY FIRST (Android: the launcher's
 // ordered list, Settings > Mods). A RomFS file several of them have is served from the first one; the copies of the
 // others are hidden, and each such conflict is logged. Unset: LARECOMP_MOD (one mod; empty = none), else
-// larecomp.ini's mod. The order is the list's, never the folders' (readdir order depends on the file system).
+// larecomp.ini's mod ("mod = Translation, Randomizer": ',' separates names there too, spaces around a name are
+// ignored). The order is the list's, never the folders' (readdir order depends on the file system).
 typedef struct { char name[128], root[1024]; } ActiveMod;
 static ActiveMod g_act[MODS_MAX];
 static int g_nact = -1;
@@ -95,8 +106,10 @@ static int active_mods(const ActiveMod **out) {
         snprintf(g_act_key, sizeof g_act_key, "%s", list);
         g_nact = 0;
         for (const char *s = list; *s && g_nact < MODS_MAX;) {
-            const char *bar = strchr(s, '|');
+            const char *bar = strpbrk(s, "|,");
             size_t len = bar ? (size_t)(bar - s) : strlen(s);
+            while (len && (*s == ' ' || *s == '\t')) s++, len--;
+            while (len && (s[len - 1] == ' ' || s[len - 1] == '\t')) len--;
             ActiveMod *m = &g_act[g_nact];
             if (len && len < sizeof m->name) {
                 memcpy(m->name, s, len);
@@ -107,7 +120,13 @@ static int active_mods(const ActiveMod **out) {
                 snprintf(p, sizeof p, "%s/%s", mods_dir(), m->name);
                 if (dup) LOG("[mods] %s: listed twice, its first place counts\n", m->name);
                 else if (m->name[0] == '.' || strchr(m->name, '/') || strchr(m->name, '\\')) LOG("[mods] '%s': not a mods/ folder name, skipped\n", m->name);
-                else if (find_romfs(p, 4, m->root, sizeof m->root)) { LOG("[mods] %d. %s: %s\n", g_nact + 1, m->name, m->root); g_nact++; }
+                else if (find_romfs(p, 4, m->root, sizeof m->root)) {
+                    LOG("[mods] %d. %s: %s\n", g_nact + 1, m->name, m->root);
+                    char exefs[1100];  // code patches (IPS / pchtxt) are made for one build of the game: not applied here
+                    snprintf(exefs, sizeof exefs, "%s/../exefs", m->root);
+                    if (is_dir(exefs)) LOG("[mods] %s: exefs/ ignored (only romfs/ files are replaced)\n", m->name);
+                    g_nact++;
+                }
                 else LOG("[mods] %s: no romfs/ folder found under %s\n", m->name, p);
             }
             if (!bar) break;

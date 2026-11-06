@@ -128,6 +128,38 @@ and history rewrites are blocked. The protection grants no owner exception.
 (`.bfttf`), textures, models, music, game text, saves, or mods containing game files.
 This also applies to issues, comments, and PRs.
 
+## Mods
+
+Only RomFS files are replaced (`mods/<name>/romfs/...`); code patches (`exefs/`, `.ips`,
+`.pchtxt`) are ignored. Several mods can be active at once, and **the first one in the
+list wins** when two mods provide the same file; files unique to each mod are all served.
+
+- **Android:** Settings › Mods — one switch per mod and ▲ ▼ to order them; the order is
+  kept in `<filesDir>/mods/.load-order` and conflicts are listed on screen.
+- **Desktop / `larecomp.ini`:** `mod = Translation, Randomizer` gives priority to
+  `Translation` (`|` also separates names; spaces around a name are ignored).
+
+Details, priority rules, and the log lines to check: [`docs/MODS.md`](docs/MODS.md).
+
+## Recent screenshots and videos
+
+Screenshots shared by the upstream project after the text fixes (language selection,
+party screen, Professor Oak's intro). They document individual tests, not a validated
+release.
+
+| | |
+|---|---|
+| ![City rooftop at night](screenshots/10-telhado-cidade-noite.jpg) | ![Party and EXP](screenshots/11-equipe-exp.jpg) |
+| World at night | Party screen with names, levels, and EXP text |
+| ![Language selection in Portuguese](screenshots/12-selecao-idioma-portugues.jpg) | ![Language selection in Spanish](screenshots/13-selecao-idioma-espanhol.jpg) |
+| Language selection in Portuguese, with text | Language selection in Spanish, with text |
+| ![Professor Oak's intro in French](screenshots/14-intro-professor-frances.jpg) | |
+| Professor Oak's intro in French, with text (test by ptichalouf, Galaxy Z Fold7) | |
+
+Videos from the upstream author's channel:
+[gyroscope test, multi-language](https://youtu.be/Wngih_skzco) ·
+[text and FPS/Turnip fixes](https://youtu.be/ZyWnYdSipb8).
+
 ## Historical screenshots · Galaxy S23, v0090
 
 <details>
@@ -154,6 +186,8 @@ The original authors' credits and licenses are preserved.
 - [peiikai / LASRecomp](https://github.com/peiikai/LASRecomp) — runtime foundation.
 - [Nycolazs / LASRecomp-Android-Plus](https://github.com/Nycolazs/LASRecomp-Android-Plus) — Android port reference.
 - Channel linked by the upstream project: [emuucheck](https://youtube.com/@emuucheck).
+- [ptichalouf](https://github.com/ptichalouf) — credited upstream for the game-language, runtime link
+  (DT_NEEDED), active Turnip, install-state home screen, and invisible-text (no `shaderInt64`) PRs.
 
 See [`LICENSE`](LICENSE), [`LICENSE-LASRecomp`](LICENSE-LASRecomp),
 [`LICENSES/`](LICENSES/), and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
