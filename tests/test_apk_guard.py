@@ -79,7 +79,7 @@ class ApkGuard(unittest.TestCase):
                     'LETSGO_KS_PASS': 'pass:android', 'LETSGO_KEY_PASS': 'pass:android',
                     'GAME': 'none'}
         # Do not stage a real private kit or inherit a caller's destination.
-        for name in ('LETSGO_KIT_SOURCE', 'LETSGO_BUILD_ASSETS', 'LETSGO_APK_DEST'):
+        for name in ('LETSGO_KIT_SOURCE', 'LETSGO_KIT_DIR', 'LETSGO_BUILD_ASSETS', 'LETSGO_APK_DEST'):
             self.env.pop(name, None)
         subprocess.run(['keytool', '-genkeypair', '-keystore', self.env['LETSGO_KEYSTORE'],
                         '-storepass', 'android', '-keypass', 'android', '-alias', 'debug',

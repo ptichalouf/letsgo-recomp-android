@@ -7,21 +7,26 @@ Aucun NSP/XCI ni fichier de clés n'est lu ici (PR B distincte).
 
 ## Construire sans jeu
 
-Exécuter le préflight de l'environnement, puis charger le SDK/NDK/JDK. Fournir
-`LETSGO_KIT_SOURCE`, un kit **local** dont `upstream.apk` est l'APK sans jeu de
-Nycolazs/LASRecomp-Android-Plus android-v1.2.0, SHA256 épinglé dans
-`tools/stage-buildkit.py`. Le script ne télécharge rien. Disposition du kit :
-`lib/arm64-v8a/libzig.so`, `assets-unpacked/{pyhome,cckit/clang/include,cckit/sysroot/usr/include}`.
-Les Python/LZ4/Capstone/Unicorn et les licences sont conservés ; notre générateur
-est copié du présent dépôt, jamais celui d'un autre jeu.
+Le kit (Python, Capstone, Unicorn, lz4, zig, en-têtes NDK) est **construit depuis les sources épinglées** de
+`deps.lock` (URL + SHA-256), comme le fait la CI (`.github/workflows/apk.yml`) ; aucun APK tiers n'est recopié.
+Licences : `THIRD_PARTY_NOTICES.md` §3b ; source correspondante (Unicorn GPL-2.0, FFmpeg LGPL) :
+`letsgo-<version>-source.tar.gz` publié avec chaque APK.
 
 ```sh
+tools/ci/fetch-deps.sh                 # télécharge et vérifie deps.lock dans deps/dl/
+tools/ci/build-deps.sh                 # SDL3, FFmpeg, shaderc, libadrenotools -> deps/
+tools/ci/build-buildkit.sh             # kit -> build/kit/
+export LETSGO_KIT_DIR="$PWD/build/kit"
 python3 tools/stage-buildkit.py
-bash build-runtime.sh && bash link-runtime.sh
+bash build-runtime.sh && bash link-runtime.sh && bash build-modunpack.sh
 GAME=none LETSGO_BUILD_ASSETS="$PWD/build/build-assets" \
   LETSGO_APK_DEST=/chemin/prive/build/LetsGoRecomp-android.apk bash build-apk.sh
 python3 -m unittest discover -s tests -v
 ```
+
+`LETSGO_KIT_SOURCE` (dossier contenant `upstream.apk`, l'APK sans jeu de Nycolazs/LASRecomp-Android-Plus
+android-v1.2.0, SHA256 épinglé dans `tools/stage-buildkit.py`) reste accepté pour comparer localement
+(`tools/ci/kit-parity.py`) ; un APK fait ainsi ne doit jamais être distribué.
 
 Après toute modification du générateur : restager **avant** le build runtime pour
 recalculer GAMELIB_ID ; le packaging refuse un kit/runtime incompatibles.

@@ -1,0 +1,191 @@
+# APK — GAME=none APK + corresponding source, built only from the pinned sources of deps.lock.
+#
+# Runs on every PR / push (CI build, signed with a throwaway key generated in the job: for testing, not for
+# distribution) and is called by release.yml (`release: true`: signed with the release key from the secrets).
+# Never uses game files, keys, firmware or a third-party prebuilt APK. Outputs (artifact `letsgo-apk-<ver>`):
+#   LetsGoRecomp-android-<ver>.apk, letsgo-<ver>-source.tar.gz, SHA256SUMS
+
+name: APK
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Tag or commit to build'
+        type: string
+        required: true
+      release:
+        description: 'Sign with the release key (LETSGO_RELEASE_* secrets)'
+        type: boolean
+        default: false
+    secrets:
+      LETSGO_RELEASE_KEYSTORE_B64:
+        required: false
+      LETSGO_RELEASE_KS_PASS:
+        required: false
+      LETSGO_RELEASE_KEY_PASS:
+        required: false
+      LETSGO_RELEASE_KEY_ALIAS:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deps-lock:
+    name: deps.lock (every sha256, every license text)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/cache@v4
+        with:
+          path: deps/dl
+          key: deps-dl-${{ hashFiles('deps.lock') }}
+      - name: Download and check every pinned input
+        run: tools/ci/fetch-deps.sh
+      - name: License texts in LICENSES/ = the members of the pinned archives
+        run: python3 -I tools/ci/deps.py licenses
+      - name: deps.lock tests
+        run: python3 -m unittest tests.test_deps_lock tests.test_release_assets -v
+
+  apk:
+    name: GAME=none APK from source
+    needs: deps-lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      REF: ${{ inputs.ref || github.sha }}
+      JOBS: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REF }}
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-34
+            build-tools;35.0.0
+            ndk;28.2.13676358
+
+      # python3.14 compiles the kit's .pyc (same bytecode as on the phone); the scripts run with it too.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Environment
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "BT=$ANDROID_SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_ENV"
+          command -v ninja || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
+          if [ -n "${{ inputs.ref }}" ] && git rev-parse -q --verify "refs/tags/${{ inputs.ref }}" >/dev/null; then
+            ver="${{ inputs.ref }}"; ver=${ver#v}
+          else
+            ver="0.0.0-ci.$(git rev-parse --short=10 HEAD)"
+          fi
+          echo "VER=$ver" >> "$GITHUB_ENV"
+          echo "STAGING=$RUNNER_TEMP/staging" >> "$GITHUB_ENV"
+          df -h / | tail -1
+
+      - name: Repository guards
+        run: |
+          python3 tools/check_no_game_content.py
+          python3 tools/check_no_secrets.py
+
+      - uses: actions/cache@v4
+        with:
+          path: deps/dl
+          key: deps-dl-${{ hashFiles('deps.lock') }}
+
+      - name: Pinned inputs (deps.lock)
+        run: tools/ci/fetch-deps.sh
+
+      - name: Native dependencies from source (SDL3, FFmpeg, shaderc, libadrenotools)
+        run: tools/ci/build-deps.sh
+
+      - name: On-device builder kit from source (CPython, Capstone, Unicorn, lz4, zig, NDK headers)
+        run: tools/ci/build-buildkit.sh
+
+      - name: Runtime and native libraries
+        env:
+          LETSGO_KIT_DIR: ${{ github.workspace }}/build/kit
+        run: |
+          python3 tools/stage-buildkit.py
+          git diff --exit-code GAMELIB_ID.txt
+          bash build-runtime.sh
+          bash link-runtime.sh
+          bash build-modunpack.sh
+
+      - name: Signing key
+        env:
+          RELEASE: ${{ inputs.release && 'true' || 'false' }}
+          KS_B64: ${{ secrets.LETSGO_RELEASE_KEYSTORE_B64 }}
+        run: |
+          umask 077
+          if [ "$RELEASE" = true ]; then
+            [ -n "$KS_B64" ] || { echo "::error::release build without LETSGO_RELEASE_KEYSTORE_B64"; exit 1; }
+            printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          else
+            # Throwaway key, this job only: a CI build is for testing, not for distribution.
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.p12" -storetype PKCS12 -storepass ci-only \
+              -keypass ci-only -alias ci -dname 'CN=letsgo CI test build (not for distribution)' -keyalg RSA \
+              -keysize 2048 -validity 30 > /dev/null 2>&1
+          fi
+          echo "LETSGO_KEYSTORE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+
+      - name: Package and sign (GAME=none)
+        env:
+          GAME: none
+          LETSGO_KIT_DIR: ${{ github.workspace }}/build/kit
+          KS_PASS: ${{ inputs.release && secrets.LETSGO_RELEASE_KS_PASS || 'ci-only' }}
+          KEY_PASS: ${{ inputs.release && secrets.LETSGO_RELEASE_KEY_PASS || 'ci-only' }}
+          LETSGO_KS_PASS: env:KS_PASS
+          LETSGO_KEY_PASS: env:KEY_PASS
+        run: |
+          mkdir -p "$STAGING"
+          export LETSGO_VERSION_CODE=$(git log -1 --format=%ct)
+          export LETSGO_APK_DEST="$STAGING/LetsGoRecomp-android-$VER.apk"
+          bash build-apk.sh | tee build-apk.log
+          grep -qx APK_NO_GAME_OK build-apk.log
+          rm -f "$LETSGO_KEYSTORE"
+
+      - name: Corresponding source + SHA256SUMS
+        run: |
+          python3 -I tools/ci/deps.py source-tarball "$STAGING/letsgo-$VER-source.tar.gz" "$VER"
+          (cd "$STAGING" && sha256sum *.apk *.tar.gz > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Legal gate on the staged release (tests/test_release_assets.py)
+        run: |
+          LETSGO_RELEASE_STAGING="$STAGING" python3 -m unittest tests.test_release_assets -v
+          "$BT/apksigner" verify --print-certs "$STAGING"/*.apk | grep -E 'Signer #1 certificate (DN|SHA-256)'
+          ls -la "$STAGING"
+
+      - name: Kit compared with the prebuilt one it replaces (information only)
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/reference"
+          curl -fsSL -o "$RUNNER_TEMP/reference/LASRecomp-Android-1.2.0.apk" \
+            https://github.com/Nycolazs/LASRecomp-Android-Plus/releases/download/android-v1.2.0/LASRecomp-Android-1.2.0.apk
+          echo "2dc418400274994108f6ffdc8fe8a2c015c27cade2c0d17722b61dedb66a8b2c  $RUNNER_TEMP/reference/LASRecomp-Android-1.2.0.apk" | sha256sum -c
+          python3 -I tools/ci/kit-parity.py "$RUNNER_TEMP/reference/LASRecomp-Android-1.2.0.apk" build/kit
+          rm -rf "$RUNNER_TEMP/reference"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: letsgo-apk-${{ env.VER }}
+          path: ${{ env.STAGING }}/
+          retention-days: 14
+          compression-level: 0

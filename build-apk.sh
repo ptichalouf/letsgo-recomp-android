@@ -6,7 +6,9 @@ command -v zip >/dev/null 2>&1 || { echo ZIP_ABSENT >&2; exit 1; }
 command -v unzip >/dev/null 2>&1 || { echo UNZIP_ABSENT >&2; exit 1; }
 cd "$(dirname "$0")"
 ROOT="$PWD"
-if [ -n "${LETSGO_KIT_SOURCE:-}" ]; then
+# The builder kit: LETSGO_KIT_DIR = build/kit from tools/ci/build-buildkit.sh (pinned sources, deps.lock);
+# LETSGO_KIT_SOURCE = the Nycolazs APK, local comparison only (see tools/stage-buildkit.py).
+if [ -n "${LETSGO_KIT_DIR:-}" ] || [ -n "${LETSGO_KIT_SOURCE:-}" ]; then
     python3 tools/stage-buildkit.py
     LETSGO_BUILD_ASSETS="$ROOT/build/build-assets"
 fi

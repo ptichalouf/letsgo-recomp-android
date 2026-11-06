@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""Stage a provenance-pinned, game-free kit; no downloads, no generated game C.
-KIT_SOURCE is a private, audited local kit directory. Never publish its APK.
+"""Stage the game-free on-device builder kit into build/build-assets/buildkit + build/apk-lib; no downloads.
+
+Two kit sources (exactly one must be set):
+  LETSGO_KIT_DIR     build/kit made by tools/ci/build-buildkit.sh from the pinned sources of deps.lock.
+                     The only source for anything distributed (release.yml, apk.yml).
+  LETSGO_KIT_SOURCE  a local directory holding `upstream.apk` = Nycolazs/LASRecomp-Android-Plus android-v1.2.0
+                     (SHA-256 pinned below). Comparison / local use only: never publish an APK made this way.
+No generated game C, no game data: the generator and headers are copied from this repository.
 """
 from pathlib import Path
 import hashlib
@@ -9,12 +15,13 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / 'src'
-source = Path(os.environ['LETSGO_KIT_SOURCE'])
 EXPECTED = '2dc418400274994108f6ffdc8fe8a2c015c27cade2c0d17722b61dedb66a8b2c'
+PROGRAMS = ['libzig.so', 'liblaspython.so', 'libpython3.14.so', 'libunicorn.so', 'libcapstone.so']
 
 def sha(p):
     h = hashlib.sha256()
@@ -22,24 +29,49 @@ def sha(p):
         for b in iter(lambda: f.read(1048576), b''): h.update(b)
     return h.hexdigest()
 
-assert sha(source / 'upstream.apk') == EXPECTED, 'unverified upstream kit'
-out = ROOT / 'build/build-assets/buildkit'; out.mkdir(parents=True, exist_ok=True)
+def wanted(name):
+    return name.startswith(('pyhome/', 'cckit/clang/include/', 'cckit/sysroot/usr/include/')) or \
+        name == 'cckit/clang/lib/libclang_rt.builtins-aarch64-android.a'
+
+kit_dir, kit_apk = os.environ.get('LETSGO_KIT_DIR'), os.environ.get('LETSGO_KIT_SOURCE')
+if bool(kit_dir) == bool(kit_apk):
+    sys.exit('BUILD_KIT_SOURCE: set exactly one of LETSGO_KIT_DIR (built from source) or LETSGO_KIT_SOURCE')
+out = ROOT / 'build/build-assets/buildkit'
+if out.exists(): shutil.rmtree(out)
+out.mkdir(parents=True)
 lib = ROOT / 'build/apk-lib'; lib.mkdir(parents=True, exist_ok=True)
-with zipfile.ZipFile(source / 'upstream.apk') as z:
-    for n in ['liblaspython.so', 'libpython3.14.so', 'libunicorn.so', 'libcapstone.so']:
-        (lib / n).write_bytes(z.read('lib/arm64-v8a/' + n))
-    for n in z.namelist():
-        if n.startswith('assets/licenses/') and not n.endswith('/'):
-            p = out / n.removeprefix('assets/'); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(z.read(n))
-    # Extract from the authenticated archive, not a mutable unpacked side copy.
-    (lib / 'libzig.so').write_bytes(z.read('lib/arm64-v8a/libzig.so'))
-    with zipfile.ZipFile(io.BytesIO(z.read('assets/ondevice.zip'))) as kit:
-        for name in kit.namelist():
-            if not name.endswith('/') and (name.startswith(('pyhome/', 'cckit/clang/include/',
-                    'cckit/sysroot/usr/include/')) or name == 'cckit/clang/lib/libclang_rt.builtins-aarch64-android.a'):
-                dest = out / name
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_bytes(kit.read(name))
+if kit_dir:
+    kit = Path(kit_dir)
+    info = json.loads((kit / 'kit.json').read_text())
+    lock = sha(ROOT / 'deps.lock')
+    if info.get('origin') != 'source' or info.get('deps_lock_sha256') != lock:
+        sys.exit('BUILD_KIT_STALE: build/kit was not built from this deps.lock (run tools/ci/build-buildkit.sh)')
+    for rel, digest in info['files'].items():
+        if sha(kit / rel) != digest:
+            sys.exit('BUILD_KIT_MODIFIED: ' + rel)
+    for n in PROGRAMS:
+        shutil.copy2(kit / 'jniLibs/arm64-v8a' / n, lib / n)
+    for p in sorted(kit.rglob('*')):
+        rel = p.relative_to(kit).as_posix()
+        if p.is_file() and (wanted(rel) or rel.startswith('licenses/')):
+            dest = out / rel; dest.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(p, dest)
+    origin = {'kit_origin': 'source', 'deps_lock_sha256': lock}
+else:
+    source = Path(kit_apk)
+    assert sha(source / 'upstream.apk') == EXPECTED, 'unverified upstream kit'
+    with zipfile.ZipFile(source / 'upstream.apk') as z:
+        for n in PROGRAMS:
+            (lib / n).write_bytes(z.read('lib/arm64-v8a/' + n))
+        for n in z.namelist():
+            if n.startswith('assets/licenses/') and not n.endswith('/'):
+                p = out / n.removeprefix('assets/'); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(z.read(n))
+        with zipfile.ZipFile(io.BytesIO(z.read('assets/ondevice.zip'))) as kit:
+            for name in kit.namelist():
+                if not name.endswith('/') and wanted(name):
+                    dest = out / name
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(kit.read(name))
+    origin = {'kit_origin': 'nycolazs-apk', 'upstream_apk_sha256': EXPECTED}
 cc = out / 'cckit'
 inc = cc / 'gamelib-src'; inc.mkdir(parents=True, exist_ok=True)
 for n in ['cpu.h', 'simd.h', 'simd_fp.h', 'gamelib.h']:
@@ -59,12 +91,12 @@ for n in files: h.update((SRC / n).read_bytes())
 h.update((flags + '\n').encode()); gid = h.hexdigest()[:16]
 # Everything used to generate/compile (not just mtime) invalidates cache after an APK update.
 manifest = {str(p.relative_to(out)): sha(p) for p in sorted(out.rglob('*')) if p.is_file() and p.name != 'config.json'}
-manifest.update({n: sha(lib / n) for n in ['libzig.so','liblaspython.so','libpython3.14.so','libunicorn.so','libcapstone.so']})
+manifest.update({n: sha(lib / n) for n in PROGRAMS})
 recipe = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
 (out / 'config.json').write_text(json.dumps({'gamelib_id': gid, 'recipe': recipe,
-    'main_ids': ['0a3f0d21e67dad80'], 'upstream_apk_sha256': EXPECTED, 'manifest': manifest}, sort_keys=True))
+    'main_ids': ['0a3f0d21e67dad80'], 'manifest': manifest, **origin}, sort_keys=True))
 (ROOT / 'GAMELIB_ID.txt').write_text(gid + '\n')
 ndk = Path(os.environ['ANDROID_NDK_HOME']) / 'toolchains/llvm/prebuilt/linux-x86_64/bin'
 subprocess.run([str(ndk / 'aarch64-linux-android30-clang'), '-shared', '-fPIC', '-O1', '-Wall', '-Wextra',
     str(ROOT / 'apk/gamebuild/jni.c'), '-o', str(lib / 'libgamebuilder.so'), '-Wl,-z,max-page-size=16384'], check=True)
-print('BUILD_KIT_OK', 'GAMELIB_ID=' + gid, 'recipe=' + recipe)
+print('BUILD_KIT_OK', 'origin=' + origin['kit_origin'], 'GAMELIB_ID=' + gid, 'recipe=' + recipe)

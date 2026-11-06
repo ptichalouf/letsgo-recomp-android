@@ -1,0 +1,79 @@
+# deps.lock — every third-party input of the Android APK, pinned.
+#
+# Read by tools/ci/deps.py (tools/ci/fetch-deps.sh, CI job `deps-lock`) and tests/test_deps_lock.py.
+# Fields are separated by `|` (spaces around them are ignored). Lines starting with `#` are comments.
+#
+#   dep  | name | version | license (SPDX) | in source tarball (yes/no) | sha256 | url
+#        A file downloaded from its upstream and checked against sha256 before any use.
+#        "in source tarball = yes": the archive is copied as-is into letsgo-<ver>-source.tar.gz (the corresponding
+#        source of every LGPL/GPL part, and the sources of everything else built from source).
+#   tool | name | version | license (SPDX) | no | - | how it is installed
+#        Installed by a package manager that checks its own downloads (not by deps.py).
+#   lic  | LICENSES/<file> | dep name | path inside the archive (or `.` for a plain file) | [first-last lines]
+#        The committed license text must be byte-identical to that member (CI `deps-lock` checks it); one file
+#        may serve two entries when both archives carry the same text.
+#
+# Versions: the ones the code expects (SDL 3.4.18: src/runtime/nvn/vulkan/device.c; zig 0.17.0:
+# src/tools/fetch_zig.sh; FFmpeg 9.0.2: src/tools/build_deps_windows.sh; libarchive/xz: build-modunpack.sh;
+# libadrenotools 8fae8ce: docs/performance/driver.cpp.orig), and for the on-device builder kit the ones of
+# Nycolazs/LASRecomp-Android-Plus android-v1.2.0 (tools/android/ondevice/*.sh, MIT), whose kit this replaces.
+# shaderc's glslang / SPIRV-Tools / SPIRV-Headers: the revisions in shaderc v2026.3's DEPS file.
+
+# --- linked into the runtime / shipped in the APK -------------------------------------------------------------------
+dep  | sdl3              | 3.4.18   | Zlib                          | yes | 9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3 | https://github.com/libsdl-org/SDL/releases/download/release-3.4.18/SDL3-3.4.18.tar.gz
+dep  | ffmpeg            | 9.0.2    | LGPL-2.1-or-later             | yes | 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e | https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+dep  | shaderc           | 2026.3   | Apache-2.0                    | yes | ee493ccf1b3038b4ef2fe024664c5eb2dc4bcc1f6b05b33e3909de0e19c81024 | https://github.com/google/shaderc/archive/refs/tags/v2026.3.tar.gz
+dep  | glslang           | 168d452a4f460d24b588fed08477a81c44ee27a1 | BSD-3-Clause AND BSD-2-Clause AND MIT AND Apache-2.0 AND GPL-3.0-or-later WITH Bison-exception-2.2 | yes | c167b2474af06cbab93abae8249efaf88fb79a09f30488e2a24d399e4258ce7a | https://github.com/KhronosGroup/glslang/archive/168d452a4f460d24b588fed08477a81c44ee27a1.tar.gz
+dep  | spirv-tools       | b707790a898e44038547df54580022fc1cf89c3d | Apache-2.0 | yes | 05d8af89737bde57571c48dbd36714c9f520a69623e14de72c3be6b600e277d6 | https://github.com/KhronosGroup/SPIRV-Tools/archive/b707790a898e44038547df54580022fc1cf89c3d.tar.gz
+dep  | spirv-headers     | 29981f65241605e08b0ede4cfeb999fe3b723c6a | MIT AND CC-BY-4.0 | yes | 232899f1ad4104fb5bc377b94596c7621575eee62ad9a9e8f929b63a7dd8a7ad | https://github.com/KhronosGroup/SPIRV-Headers/archive/29981f65241605e08b0ede4cfeb999fe3b723c6a.tar.gz
+dep  | libadrenotools    | 8fae8ce254dfc1344527e05301e43f37dea2df80 | BSD-2-Clause | yes | ceffce971676d4cfdf348a082df06fc92a1dca6d95bea892a480d63f200961cb | https://github.com/bylaws/libadrenotools/archive/8fae8ce254dfc1344527e05301e43f37dea2df80.tar.gz
+dep  | liblinkernsbypass | aa3975893d83ef1bc84c321ec60c65fbf1287887 | BSD-2-Clause | yes | da1128c8aa771c4d24766b53a47822d0717baa5c536ca8491220402942b80638 | https://github.com/bylaws/liblinkernsbypass/archive/aa3975893d83ef1bc84c321ec60c65fbf1287887.tar.gz
+dep  | libarchive        | 3.8.1    | BSD-2-Clause                  | yes | 19f917d42d530f98815ac824d90c7eaf648e9d9a50e4f309c812457ffa5496b5 | https://github.com/libarchive/libarchive/releases/download/v3.8.1/libarchive-3.8.1.tar.xz
+dep  | xz                | 5.8.1    | 0BSD                          | yes | 0b54f79df85912504de0b14aec7971e3f964491af1812d83447005807513cd9e | https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.xz
+
+# --- on-device game builder kit (assets/buildkit + lib/arm64-v8a programs) ---------------------------------------------
+dep  | cpython-android   | 3.14.8   | PSF-2.0                       | no  | 11324313957da3736f44e90257304d288864321a4dd376ed0cc35a54eacf9a33 | https://www.python.org/ftp/python/3.14.8/python-3.14.8-aarch64-linux-android.tar.gz
+dep  | capstone          | 5.0.9    | BSD-3-Clause                  | yes | 0429af292ddc604d3c9344696807e281d5e728db029f00e6a4ea9e3bff1aac9e | https://files.pythonhosted.org/packages/39/01/6516910f546fbb996068207b9dd0229b14bc8dae223114d5e0e27d3cad11/capstone-5.0.9.tar.gz
+dep  | unicorn           | 2.1.4    | GPL-2.0-only                  | yes | 00567a70e323f749b419cd86bee4f9115beab7ebba32194581c090cbb7c59cff | https://files.pythonhosted.org/packages/b2/1b/b4248aa8422e86de690cf8e85cf8feae4c33405a097d1ebe71570bdaa6f5/unicorn-2.1.4.tar.gz
+dep  | lz4               | 4.4.5    | BSD-3-Clause AND BSD-2-Clause | yes | 5f0b9e53c1e82e88c10d7c180069363980136b9d7a8306c4dca4f760d60c39f0 | https://files.pythonhosted.org/packages/57/51/f1b86d93029f418033dddf9b9f79c8d2641e7454080478ee2aab5123173e/lz4-4.4.5.tar.gz
+dep  | zig-aarch64-linux | 0.17.0   | MIT AND Apache-2.0 WITH LLVM-exception | no | 9e8d11661d4ae3bd57702a3832781e23ad151dde5798e16a5ccd503f65234ff8 | https://ziglang.org/download/0.17.0/zig-aarch64-linux-0.17.0.tar.xz
+dep  | zig-x86_64-linux  | 0.17.0   | MIT AND Apache-2.0 WITH LLVM-exception | no | 1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026 | https://ziglang.org/download/0.17.0/zig-x86_64-linux-0.17.0.tar.xz
+
+# --- license texts with no release archive ----------------------------------------------------------------------------
+# Ryujinx: github.com/Ryujinx/Ryujinx no longer exists; Software Heritage archived it (origin visit 2024-09-15,
+# snapshot 7a99a06e4449d9f03e4d41f1b601ac08d6f40bd3, refs/heads/master = cd74ae1bbd491987d983bfff36545451e2e6764c,
+# LICENSE.txt = swh:1:cnt:818ddd76058d49f42eed9c0ecb580777c7f87d7e).
+dep  | ryujinx-license   | cd74ae1bbd491987d983bfff36545451e2e6764c | MIT | no | 781bbdf040b7d0286c47cca6bffdb9148dfe751c0c9cabdf1a1752412a2e56b4 | https://archive.softwareheritage.org/api/1/content/sha1_git:818ddd76058d49f42eed9c0ecb580777c7f87d7e/raw/
+# LLVM 22.1.8 = the clang / lld inside zig 0.17.0 ("clang version 22.1.8" in the binary).
+dep  | llvm-license      | llvmorg-22.1.8 | Apache-2.0 WITH LLVM-exception | no | 8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee | https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-22.1.8/llvm/LICENSE.TXT
+
+# --- installed by sdkmanager (android-actions/setup-android), not by deps.py --------------------------------------------
+tool | android-ndk       | 28.2.13676358 | Apache-2.0 AND BSD-3-Clause AND MIT AND Apache-2.0 WITH LLVM-exception | no | - | sdkmanager "ndk;28.2.13676358" (NOTICE files copied into assets/buildkit/licenses/ at build time)
+tool | android-build-tools | 35.0.0 | Apache-2.0                  | no  | - | sdkmanager "build-tools;35.0.0" (packaging only, nothing of it is in the APK)
+
+# --- license texts in LICENSES/ and where they come from ----------------------------------------------------------------
+lic  | SDL3-zlib.txt                         | sdl3              | SDL3-3.4.18/LICENSE.txt
+lic  | FFmpeg-LGPL-2.1.txt                   | ffmpeg            | ffmpeg-9.0.2/COPYING.LGPLv2.1
+lic  | FFmpeg-LICENSE.md                     | ffmpeg            | ffmpeg-9.0.2/LICENSE.md
+lic  | shaderc-Apache-2.0.txt                | shaderc           | shaderc-2026.3/LICENSE
+lic  | glslang-LICENSE.txt                   | glslang           | glslang-168d452a4f460d24b588fed08477a81c44ee27a1/LICENSE.txt
+lic  | SPIRV-Tools-Apache-2.0.txt            | spirv-tools       | SPIRV-Tools-b707790a898e44038547df54580022fc1cf89c3d/LICENSE
+lic  | SPIRV-Headers-LICENSE.txt             | spirv-headers     | SPIRV-Headers-29981f65241605e08b0ede4cfeb999fe3b723c6a/LICENSE
+lic  | libadrenotools-BSD-2-Clause.txt       | libadrenotools    | libadrenotools-8fae8ce254dfc1344527e05301e43f37dea2df80/LICENSE
+lic  | liblinkernsbypass-BSD-2-Clause.txt    | liblinkernsbypass | liblinkernsbypass-aa3975893d83ef1bc84c321ec60c65fbf1287887/LICENSE
+lic  | libarchive-BSD-2-Clause.txt           | libarchive        | libarchive-3.8.1/COPYING
+lic  | liblzma-0BSD.txt                      | xz                | xz-5.8.1/COPYING.0BSD
+lic  | CPython-PSF-2.0.txt                   | cpython-android   | ./prefix/lib/python3.14/LICENSE.txt
+lic  | capstone-BSD-3-Clause.txt             | capstone          | capstone-5.0.9/LICENSE.TXT
+lic  | capstone-LICENSE_LLVM.txt             | capstone          | capstone-5.0.9/src/LICENSE_LLVM.TXT
+lic  | Unicorn-GPL-2.0.txt                   | unicorn           | unicorn-2.1.4/src/qemu/COPYING
+lic  | Unicorn-qemu-COPYING.LIB.txt          | unicorn           | unicorn-2.1.4/src/qemu/COPYING.LIB
+lic  | Unicorn-qemu-LICENSE.txt              | unicorn           | unicorn-2.1.4/src/qemu/LICENSE
+lic  | python-lz4-BSD-3-Clause.txt           | lz4               | lz4-4.4.5/LICENSE
+lic  | lz4-BSD-2-Clause.txt                  | lz4               | lz4-4.4.5/lz4libs/lz4.c | 1-33
+lic  | zig-MIT.txt                           | zig-aarch64-linux | zig-aarch64-linux-0.17.0/LICENSE
+lic  | musl-COPYRIGHT.txt                    | zig-aarch64-linux | zig-aarch64-linux-0.17.0/lib/libc/musl/COPYRIGHT
+# (the x86_64 zig only runs at build time; its lib/include clang headers end up in cckit/clang/include: LLVM license)
+lic  | zig-MIT.txt                           | zig-x86_64-linux  | zig-x86_64-linux-0.17.0/LICENSE
+lic  | LLVM-Apache-2.0-WITH-LLVM-exception.txt | llvm-license    | .
+lic  | Ryujinx-MIT.txt                       | ryujinx-license   | .
