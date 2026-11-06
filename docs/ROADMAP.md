@@ -128,7 +128,7 @@ reproduction against this repository's exact commit.
 
 ### P7 — `shaderInt64` fallback merged; device verification still open
 
-[PR #5](https://github.com/ptichalouf/letsgo-recomp-android/pull/5) rebased and
+[PR #5](https://github.com/AC-CREATION-AI/letsgo-recomp-android/pull/5) rebased and
 integrated the fallback. Host regression tests compare GLSL with the feature
 against the baseline, exercise paired 32-bit arithmetic without it, and validate
 SPIR-V when the required tools are installed. See

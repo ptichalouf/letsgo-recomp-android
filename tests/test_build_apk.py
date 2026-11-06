@@ -70,6 +70,36 @@ class Packaging(unittest.TestCase):
         self.output = result.stdout + result.stderr
         return result.returncode
 
+    def badging(self):
+        apk = self.root / 'LetsGoRecomp-android.apk'
+        return subprocess.run([str(SDK / 'build-tools/35.0.0/aapt2'), 'dump', 'badging', str(apk)],
+                              check=True, capture_output=True, text=True).stdout
+
+    def test_release_package_is_untouched_by_default(self):
+        self.assertEqual(self.build('none'), 0, self.output)
+        self.assertIn("package: name='com.example.packagetest'", self.badging())
+
+    def test_ci_variant_renames_package_and_label_only(self):
+        (self.root / 'apk/AndroidManifest.xml').write_text(
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android" '
+            'package="com.example.packagetest" android:versionCode="1" android:versionName="1">'
+            '<application android:label="Let\'s Go Recomp" android:hasCode="true">'
+            '<activity android:name=".Main" android:exported="false"/></application></manifest>')
+        self.env.update(LETSGO_APP_ID='com.example.packagetest.ci', LETSGO_LABEL_SUFFIX=' (CI)')
+        self.assertEqual(self.build('none'), 0, self.output)
+        info = self.badging()
+        self.assertIn("package: name='com.example.packagetest.ci'", info)
+        self.assertRegex(info, r"(?m)^application-label:'Let.{1,2}s Go Recomp \(CI\)'$")
+        # The class stays in the original Java package: the relative name is fully qualified, not re-rooted.
+        self.assertIn('com.example.packagetest.Main', subprocess.run(
+            [str(SDK / 'build-tools/35.0.0/aapt2'), 'dump', 'xmltree', '--file', 'AndroidManifest.xml',
+             str(self.root / 'LetsGoRecomp-android.apk')], check=True, capture_output=True, text=True).stdout)
+
+    def test_invalid_app_id_is_refused(self):
+        self.env['LETSGO_APP_ID'] = 'not an id'
+        self.assertNotEqual(self.build('none'), 0, self.output)
+        self.assertIn('APP_ID_INVALID', self.output)
+
     def test_none_omits_game_even_when_present_in_apklib(self):
         self.native('build/game/liblasgame.so')
         self.native('build/apk-lib/liblasgame.so')

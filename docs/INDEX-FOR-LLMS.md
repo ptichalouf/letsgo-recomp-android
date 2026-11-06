@@ -91,7 +91,7 @@ regressions.
 
 | Guard | Where | Why |
 |---|---|---|
-| No game content | `tools/check_no_game_content.py` | the repository must never hold the game |
+| No game content | `tools/check_no_game_content.py` (kit) + `tools/check_letsgo_content.py` (stricter: keys, signing material, extracted dirs) | the repository must never hold the game |
 | No secrets | `tools/check_no_secrets.py` | no private key, token or console key |
 | LF except `.bat`/`.ps1` | `.gitattributes`, `tools/check_line_endings.py` | a CRLF breaks bash scripts |
 | 16 KiB alignment | `package_shared_android.py` | refuses to package a non-conforming `.so` |

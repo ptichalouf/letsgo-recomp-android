@@ -17,6 +17,14 @@ BT=$SDK/build-tools/35.0.0
 PLATFORM=$SDK/platforms/android-34/android.jar
 KS=${LETSGO_KEYSTORE:-~/workspace/mvc2-xbox/apk-test/debug.keystore}
 GAME=${GAME:-none}
+# Optional side-by-side test variant (CI): LETSGO_APP_ID renames the applicationId only (the Java package, the JNI
+# symbols and the resources stay com.letsgorecomp), LETSGO_LABEL_SUFFIX is appended to the launcher label. Unset =
+# the release package com.letsgorecomp, untouched.
+APP_ID=${LETSGO_APP_ID:-}
+LABEL_SUFFIX=${LETSGO_LABEL_SUFFIX:-}
+[[ -z "$APP_ID" || "$APP_ID" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]] \
+    || { echo "APP_ID_INVALID: $APP_ID"; exit 1; }
+[[ "$LABEL_SUFFIX" =~ ^[A-Za-z0-9\ ()._-]*$ ]] || { echo "LABEL_SUFFIX_INVALID: $LABEL_SUFFIX"; exit 1; }
 case "$GAME" in
     none|with) ;;
     *) echo "GAME_MODE_INVALID: expected GAME=none or GAME=with"; exit 1 ;;
@@ -111,10 +119,20 @@ fi
 # 4. manifest + resources; dex + native libraries are added below.
 "$BT/aapt2" compile --dir apk/res -o "$OUT/res.zip" 2>>"$OUT/aapt.log" \
     || { echo AAPT_COMPILE_FAIL; tail -10 "$OUT/aapt.log"; exit 1; }
+MANIFEST=apk/AndroidManifest.xml
+rename=()
+if [ -n "$LABEL_SUFFIX" ]; then
+    MANIFEST="$OUT/AndroidManifest.xml"
+    sed "s|android:label=\"Let's Go Recomp\"|android:label=\"Let's Go Recomp${LABEL_SUFFIX}\"|g" \
+        apk/AndroidManifest.xml > "$MANIFEST"
+    grep -q "Let's Go Recomp${LABEL_SUFFIX}\"" "$MANIFEST" || { echo "LABEL_SUFFIX_NOT_APPLIED"; exit 1; }
+fi
+if [ -n "$APP_ID" ]; then rename=(--rename-manifest-package "$APP_ID"); fi
+echo "APK_APP_ID=${APP_ID:-<manifest>} APK_LABEL_SUFFIX='${LABEL_SUFFIX}'"
 version=()
 if [ "${LETSGO_DEBUG:-0}" = 1 ]; then version+=(--debug-mode); fi
 if [ -n "${LETSGO_VERSION_CODE:-}" ]; then version+=(--version-code "$LETSGO_VERSION_CODE" --replace-version); fi
-"$BT/aapt2" link -o "$OUT/base.apk" --manifest apk/AndroidManifest.xml \
+"$BT/aapt2" link -o "$OUT/base.apk" --manifest "$MANIFEST" "${rename[@]}" \
     --java "$OUT/gen" -I "$PLATFORM" -A apk/assets ${LETSGO_BUILD_ASSETS:+-A "$LETSGO_BUILD_ASSETS"} "${NOTICES[@]}" \
     --min-sdk-version 28 --target-sdk-version 34 "${version[@]}" "$OUT/res.zip" \
     2>"$OUT/aapt.log" || { echo AAPT_FAIL; tail -10 "$OUT/aapt.log"; exit 1; }

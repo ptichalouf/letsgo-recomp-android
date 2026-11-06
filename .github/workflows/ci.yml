@@ -31,7 +31,9 @@ jobs:
           fetch-depth: 0  # --history scanne les commits précédents
 
       - name: Aucun contenu de jeu, clé ou signature
-        run: python3 tools/check_no_game_content.py
+        run: |
+          python3 tools/check_no_game_content.py .
+          python3 tools/check_letsgo_content.py
 
       - name: Fins de ligne (LF sauf .bat/.ps1)
         run: python3 tools/check_line_endings.py

@@ -1,83 +1,43 @@
-## Résumé
+## Problem
 
-<!-- Décrivez en 2 à 4 lignes : le problème et ce que vous proposez. -->
+<!-- What was wrong. Link the issue: "Closes #...". One problem per PR. -->
 
-## Type de contribution
+## Change
 
-<!--
-- [ ] Correction de bug
-- [ ] Amélioration de performance
-- [ ] Nouvelle fonctionnalité
-- [ ] Documentation
-- [ ] Test
--->
+<!-- What you changed and why this approach. List the files touched. -->
 
-## Motivation
+## Evidence
 
-<!-- Pourquoi ce changement est utile ? Quel problème résout-il ? -->
+<!-- Real runs only. For each check: exact command, exit status, before/after.
+     If you did not run something, write "not executed". A skipped test is not a passed test. -->
 
-## Environnement
-
-| | |
-|---|---|
-| Appareil | <!-- ex. Galaxy S23, Fold7 --> |
-| CPU / GPU | <!-- ex. Snapdragon 8 Gen 2 / Adreno 740 --> |
-| Android | <!-- ex. Android 16 --> |
-| Version du dépôt | <!-- SHA ou version de la branche `publication` --> |
-| Résolution choisie | <!-- ex. 720p --> |
-
-## Reproduction
-
-<!--
-Étapes exactes pour reproduire. Pour un bug visuel, joignez une capture.
-Si ce n'est pas reproductible, dites-le clairement — c'est une information utile.
--->
-
-1.
-2.
-3.
-
-## Preuve
-
-<!--
-La commande exacte, son code de sortie, et ce qui a changé.
-Un outil manquant est un skip ou un échec, jamais un succès de remplacement.
--->
-
-**Avant :**
-
-```
-<!-- sortie réelle -->
+```text
+Command:
+Before:
+After:
 ```
 
-**Après :**
+## Limits
 
-```
-<!-- sortie réelle -->
-```
+<!-- What this PR does NOT prove. -->
 
-## Contraintes respectées
+## Device tested on
 
-<!--
-- [ ] Aucun fichier de jeu, clé, save, mod contenant du jeu ou asset du jeu
-- [ ] Aucun secret, aucune clé de signature
-- [ ] Test synthétique ajouté (quand c'est possible)
-- [ ] Les licences tierces sont préservées
--->
+<!-- Device, SoC/GPU, driver, build SHA, what you saw, and WHO ran it (name of the tester).
+     Otherwise write exactly: not device-tested -->
 
-## Limites
+## AI disclosure
 
-<!--
-Ce que vous n'avez PAS vérifié : autre appareil, autre GPU, autre version du jeu,
-build complet impossible sans dump personnel, etc.
--->
+Agent: <!-- agent name, or "none (human only)" -->
+Model: <!-- model id, or "none" -->
 
-## Assisté par un outil de codage ?
+- [ ] An AI agent wrote part or all of this. I read every changed line, the evidence comes from real runs, and a different reviewer must approve before merge.
+- [ ] No AI agent was used.
 
-<!--
-Si oui, dites-le simplement ici, sans nom de modèle ni d'outil, et sans trailer de
-signature. L'assistance n'est pas une approbation indépendante.
--->
+## Checklist
 
-- [ ] Oui
-- [ ] Non
+- [ ] No game files, keys, firmware, saves, extracted or generated game content, or private paths anywhere in this PR (code, tests, logs, screenshots).
+- [ ] Tests added or updated where possible (synthetic data only), or I explained why not.
+- [ ] Third-party code, if any, is credited with source, licence and copyright holder; `THIRD_PARTY_NOTICES.md` and `LICENSES/` updated. MIT-compatible.
+- [ ] I have the right to submit this under the repository's licence.
+- [ ] Opened as draft until the evidence above was checked.
