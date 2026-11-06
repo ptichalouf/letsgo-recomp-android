@@ -1,0 +1,95 @@
+# Release — GAME=none APK + corresponding source, signed with the release key, published as a GitHub prerelease.
+#
+# Blocked on purpose until the owner decides: the `gate` job refuses to run unless the repository variable
+# LETSGO_RELEASE_APPROVED is "true" (to be set only after a real-device report, see CONTRIBUTING / the AC-EmuNX plan).
+# The build itself is apk.yml (same job as every PR): every input pinned in deps.lock and built from source, the
+# on-device builder kit included; no third-party prebuilt APK, no game code, game data, keys or firmware.
+# Assets: LetsGoRecomp-android-<ver>.apk, letsgo-<ver>-source.tar.gz (corresponding source: this tree + the
+# unmodified upstream archives, incl. Unicorn GPL-2.0 and FFmpeg LGPL-2.1+), SHA256SUMS.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (vX.Y.Z); must already exist'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Release approved
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Owner decision recorded
+        env:
+          APPROVED: ${{ vars.LETSGO_RELEASE_APPROVED }}
+        run: |
+          [ "$APPROVED" = true ] || { echo "::error::LETSGO_RELEASE_APPROVED is not 'true' (see header of release.yml)"; exit 1; }
+      - id: tag
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "::error::not a release tag: $TAG"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (apk.yml, release key)
+    needs: gate
+    uses: ./.github/workflows/apk.yml
+    with:
+      ref: ${{ needs.gate.outputs.tag }}
+      release: true
+    secrets:
+      LETSGO_RELEASE_KEYSTORE_B64: ${{ secrets.LETSGO_RELEASE_KEYSTORE_B64 }}
+      LETSGO_RELEASE_KS_PASS: ${{ secrets.LETSGO_RELEASE_KS_PASS }}
+      LETSGO_RELEASE_KEY_PASS: ${{ secrets.LETSGO_RELEASE_KEY_PASS }}
+      LETSGO_RELEASE_KEY_ALIAS: ${{ secrets.LETSGO_RELEASE_KEY_ALIAS }}
+
+  release:
+    name: GitHub prerelease
+    needs: [gate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.gate.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: letsgo-apk-*
+          merge-multiple: true
+          path: assets
+      - name: Check the assets
+        run: |
+          cd assets
+          ls -la
+          [ "$(ls *.apk | wc -l)" = 1 ] && [ "$(ls letsgo-*-source.tar.gz | wc -l)" = 1 ] || { echo "::error::expected one APK and one source tarball"; exit 1; }
+          sha256sum -c SHA256SUMS
+      - name: Publish
+        run: |
+          cat > notes.md <<NOTES
+          **Unofficial, experimental build.** Not affiliated with Nintendo, The Pokémon Company or Game Freak.
+
+          This APK contains **no game code, no game data and no keys**. It requires your own legally obtained copy of
+          the game (already extracted, see [BUILD.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/BUILD.md));
+          the game code is compiled on your device from your own files. Third-party notices are inside the APK
+          (\`assets/licenses/\`) and in [THIRD_PARTY_NOTICES.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/THIRD_PARTY_NOTICES.md).
+
+          **Source code**: \`letsgo-${TAG#v}-source.tar.gz\` below is the complete corresponding source of this APK,
+          including the unmodified sources of its GPL-2.0 (Unicorn) and LGPL-2.1+ (FFmpeg) components and the scripts
+          that built them. Every input is pinned in [deps.lock](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/deps.lock).
+
+          Check the download with \`sha256sum -c SHA256SUMS\`.
+          NOTES
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag --prerelease \
+            --title "Let's Go Recomp Android $TAG (unofficial, experimental)" --notes-file notes.md \
+            assets/*.apk assets/letsgo-*-source.tar.gz assets/SHA256SUMS
