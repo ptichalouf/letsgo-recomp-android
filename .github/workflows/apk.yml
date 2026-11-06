@@ -189,9 +189,12 @@ jobs:
             "$BT/aapt2" dump badging "$ci" | grep -qF "application: label='Let's Go Recomp (CI)'"
             # Resources must resolve under the renamed package (Theme/Txt look them up by getPackageName()),
             # and the activities must keep their com.letsgorecomp class names (JNI symbols).
-            "$BT/aapt2" dump resources "$ci" | grep -q 'com.letsgorecomp.ci:color/lg_bg'
-            "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$ci" | grep -q 'com.letsgorecomp.LetsGoActivity'
-            "$BT/aapt2" dump xmltree --file AndroidManifest.xml "$ci" | grep -q 'com.letsgorecomp.GameBuild'
+            res=$("$BT/aapt2" dump resources "$ci"); echo "$res" | grep -E '^Package name=' || true
+            grep -qE '^Package name=com\.letsgorecomp\.ci( |$)' <<<"$res"
+            grep -q 'color/lg_bg' <<<"$res"
+            xml=$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$ci")
+            grep -q 'com.letsgorecomp.LetsGoActivity' <<<"$xml"
+            grep -q 'com.letsgorecomp.GameBuild' <<<"$xml"
             "$BT/apksigner" verify "$ci"
             (cd "$TESTVAR" && sha256sum *.apk > SHA256SUMS-ci && cat SHA256SUMS-ci)
           fi
