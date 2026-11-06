@@ -97,6 +97,15 @@ for f in "$ROOT"/deps/ffmpeg-android/lib/libav*.so "$ROOT"/deps/ffmpeg-android/l
 done
 cp "${ANDROID_NDK_HOME:-~/Android/Sdk/ndk/28.2.13676358}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "$OUT/lib/arm64-v8a/"
 
+# Third-party notices travel with every APK: THIRD_PARTY_NOTICES.md and LICENSES/ as assets/licenses/.
+NOTICES=()
+if [ -f "$ROOT/THIRD_PARTY_NOTICES.md" ]; then
+    mkdir -p "$OUT/notice-assets/licenses"
+    cp "$ROOT/THIRD_PARTY_NOTICES.md" "$OUT/notice-assets/licenses/"
+    [ -d "$ROOT/LICENSES" ] && cp "$ROOT"/LICENSES/* "$OUT/notice-assets/licenses/"
+    NOTICES=(-A "$OUT/notice-assets")
+fi
+
 # 4. manifest + resources; dex + native libraries are added below.
 "$BT/aapt2" compile --dir apk/res -o "$OUT/res.zip" 2>>"$OUT/aapt.log" \
     || { echo AAPT_COMPILE_FAIL; tail -10 "$OUT/aapt.log"; exit 1; }
@@ -104,7 +113,7 @@ version=()
 if [ "${LETSGO_DEBUG:-0}" = 1 ]; then version+=(--debug-mode); fi
 if [ -n "${LETSGO_VERSION_CODE:-}" ]; then version+=(--version-code "$LETSGO_VERSION_CODE" --replace-version); fi
 "$BT/aapt2" link -o "$OUT/base.apk" --manifest apk/AndroidManifest.xml \
-    --java "$OUT/gen" -I "$PLATFORM" -A apk/assets ${LETSGO_BUILD_ASSETS:+-A "$LETSGO_BUILD_ASSETS"} \
+    --java "$OUT/gen" -I "$PLATFORM" -A apk/assets ${LETSGO_BUILD_ASSETS:+-A "$LETSGO_BUILD_ASSETS"} "${NOTICES[@]}" \
     --min-sdk-version 28 --target-sdk-version 34 "${version[@]}" "$OUT/res.zip" \
     2>"$OUT/aapt.log" || { echo AAPT_FAIL; tail -10 "$OUT/aapt.log"; exit 1; }
 cp "$OUT/base.apk" "$OUT/unsigned.apk"
@@ -124,6 +133,9 @@ unzip -tq "$OUT/LetsGoRecomp-android.apk" > "$OUT/archive-check.txt" 2>&1 \
 unzip -Z1 "$OUT/LetsGoRecomp-android.apk" > "$OUT/entries.txt" \
     || { echo APK_ZIP_INVALID >&2; exit 1; }
 grep -qx 'classes.dex' "$OUT/entries.txt" || { echo APK_DEX_MISSING >&2; exit 1; }
+if [ ${#NOTICES[@]} -gt 0 ]; then
+    grep -qx 'assets/licenses/THIRD_PARTY_NOTICES.md' "$OUT/entries.txt" || { echo APK_NOTICES_MISSING >&2; exit 1; }
+fi
 for library in liblasrecomp.so libSDL3.so libc++_shared.so; do
     grep -qxF "lib/arm64-v8a/$library" "$OUT/entries.txt" \
         || { echo "APK_NATIVE_MISSING: $library" >&2; exit 1; }
