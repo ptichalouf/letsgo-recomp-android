@@ -35,7 +35,7 @@ final class Theme {
 
     // Dynamic lookup matches this project's javac-before-aapt build (no generated R at javac).
     static int color(Context c, String token) {
-        int id = c.getResources().getIdentifier("lg_" + token, "color", c.getPackageName());
+        int id = c.getResources().getIdentifier("lg_" + token, "color", Txt.RES_PKG);
         if (id == 0) throw new IllegalArgumentException("Unknown theme token: " + token);
         return c.getResources().getColor(id, c.getTheme());
     }

@@ -35,6 +35,14 @@ class CiVariant(unittest.TestCase):
         self.assertIn('pattern: letsgo-apk-*', r)
         self.assertNotIn('com.letsgorecomp.ci', r)
 
+    def test_resource_lookups_use_the_resource_package_not_the_application_id(self):
+        # aapt2 --rename-manifest-package keeps the resource table in com.letsgorecomp: a lookup by
+        # getPackageName() would return 0 on the .ci build (Theme.color would throw at startup).
+        for f in (ROOT / 'apk/java').rglob('*.java'):
+            text = f.read_text(encoding='utf-8')
+            self.assertNotRegex(text, r'getIdentifier\([^;]*getPackageName\(\)', f.name)
+        self.assertIn('RES_PKG', (ROOT / 'apk/java/com/letsgorecomp/Theme.java').read_text(encoding='utf-8'))
+
     def test_java_does_not_hardcode_the_application_id(self):
         # Runtime code must use getPackageName(); only the Txt fallback and the class package may name it.
         for f in (ROOT / 'apk/java').rglob('*.java'):

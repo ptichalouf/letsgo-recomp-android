@@ -187,10 +187,10 @@ jobs:
             [ "$(pkg "$ci")" = com.letsgorecomp.ci ] || { echo "::error::CI package is $(pkg "$ci")"; exit 1; }
             "$BT/aapt2" dump badging "$ci" | grep -E "^(package: name|application: label)"
             "$BT/aapt2" dump badging "$ci" | grep -qF "application: label='Let's Go Recomp (CI)'"
-            # Resources must resolve under the renamed package (Theme/Txt look them up by getPackageName()),
+            # Resources stay in the original package (Theme/Txt look them up with Txt.RES_PKG, not getPackageName()),
             # and the activities must keep their com.letsgorecomp class names (JNI symbols).
             res=$("$BT/aapt2" dump resources "$ci"); echo "$res" | grep -E '^Package name=' || true
-            grep -qE '^Package name=com\.letsgorecomp\.ci( |$)' <<<"$res"
+            grep -qE '^Package name=com\.letsgorecomp( |$)' <<<"$res"   # resources stay in the original package
             grep -q 'color/lg_bg' <<<"$res"
             xml=$("$BT/aapt2" dump xmltree --file AndroidManifest.xml "$ci")
             grep -q 'com.letsgorecomp.LetsGoActivity' <<<"$xml"

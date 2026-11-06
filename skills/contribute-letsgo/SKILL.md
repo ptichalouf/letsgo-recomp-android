@@ -34,8 +34,8 @@ Goal: turn one bounded problem into a draft PR that a reviewer can check without
   sources of `deps.lock`; `release.yml` is gated by the repo variable `LETSGO_RELEASE_APPROVED` (agents never set it).
 - `build-apk.sh` takes `GAME=none|with`, and optionally `LETSGO_APP_ID` / `LETSGO_LABEL_SUFFIX`. CI uses them to
   produce the side-by-side test APK `com.letsgorecomp.ci` ("Let's Go Recomp (CI)"). The release package is always
-  `com.letsgorecomp`. The Java package, JNI symbols and resource lookups stay `com.letsgorecomp`: use
-  `getPackageName()` at runtime, never a literal application id.
+  `com.letsgorecomp`. The Java package, JNI symbols and resource lookups stay `com.letsgorecomp`: resource
+  lookups use `Txt.RES_PKG`, never `getPackageName()` (it is `com.letsgorecomp.ci` on the test build).
 
 ## Work
 

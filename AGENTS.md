@@ -181,5 +181,5 @@ Build facts (kept from the pipeline, see `BUILD.md`, `docs/HOWTO-BUILD.md`, `apk
   imported by the GPU; buffer→buffer copies wait for the GPU **only** when the memory is genuinely imported.
 - **Background**: the engine must stop when not in the foreground; a background run burns a whole core.
 - **Vulkan surface**: after a rotation or a fold Android recreates the `Surface`; reacquire it and replay the image.
-- **Application id**: runtime code uses `getPackageName()`; the Java package, JNI symbols and resource lookups
-  are `com.letsgorecomp` whatever the applicationId (release or `.ci`).
+- **Application id**: the Java package, JNI symbols and resource package are `com.letsgorecomp` whatever the
+  applicationId (release or `.ci`): resource lookups use `Txt.RES_PKG`, never `getPackageName()`.
