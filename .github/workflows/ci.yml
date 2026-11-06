@@ -72,8 +72,8 @@ jobs:
         run: echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.2.13676358" >> "$GITHUB_ENV"
 
       - name: Tests de la racine
-        # test_stage_buildkit exige LETSGO_KIT_SOURCE, un kit privé et audité qui
-        # n'est jamais publié : il saute ici, c'est assumé.
+        # test_stage_buildkit compare au kit Nycolazs (LETSGO_KIT_SOURCE) : il saute ici. Le kit
+        # construit depuis deps.lock et l'APK complet sont faits et vérifiés par apk.yml.
         run: python3 -m unittest discover -s tests -v
 
       - name: Tests de l'APK

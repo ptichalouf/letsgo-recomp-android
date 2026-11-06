@@ -37,12 +37,14 @@ if [ -n "${ANDROID_SDK_ROOT:-}" ]; then
     export PATH="${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${PATH}"
 fi
 
-# --- Private buildkit (optional) --------------------------------------------
-# The buildkit used by the on-device game builder is private, audited and never
-# published. Without it, that one test skips — which is the intended behaviour.
-# Point LETSGO_KIT_SOURCE at a directory holding `upstream.apk`.
-if [ -z "${LETSGO_KIT_SOURCE:-}" ] && [ -d "/opt/data/build-rust/letsgo/outils/android-buildkit" ]; then
-    export LETSGO_KIT_SOURCE=/opt/data/build-rust/letsgo/outils/android-buildkit
+# --- On-device builder kit (optional) ---------------------------------------
+# Built from the pinned sources of deps.lock: tools/ci/fetch-deps.sh, tools/ci/build-deps.sh,
+# tools/ci/build-buildkit.sh, then LETSGO_KIT_DIR=$PWD/build/kit (what apk.yml / release.yml do).
+# LETSGO_KIT_SOURCE (a directory holding the Nycolazs `upstream.apk`) still works for local comparison only;
+# never distribute an APK built that way.
+if [ -z "${LETSGO_KIT_DIR:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/../build/kit/kit.json" ]; then
+    LETSGO_KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../build/kit" && pwd)"
+    export LETSGO_KIT_DIR
 fi
 
 cat <<EOF
@@ -50,7 +52,7 @@ Environment:
   JAVA_HOME        = ${JAVA_HOME:-<not set>}
   ANDROID_SDK_ROOT = ${ANDROID_SDK_ROOT:-<not set>}
   ANDROID_NDK_HOME = ${ANDROID_NDK_HOME:-<not set>}
-  LETSGO_KIT_SOURCE= ${LETSGO_KIT_SOURCE:-<not set>}
+  LETSGO_KIT_DIR   = ${LETSGO_KIT_DIR:-<not set>}
 
 Then run:
   python3 -m unittest discover -s tests -v

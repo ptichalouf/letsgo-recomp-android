@@ -45,27 +45,46 @@ its SHA-256. The package below is the one previously bundled, kept for reference
 
 ## 3. Libraries linked into the Android build (not stored in this repository)
 
-The build scripts (`build-runtime.sh`, `link-runtime.sh`, `build-apk.sh`, `rebuild-ffmpeg-opus.sh`) fetch nothing:
-they expect these under `deps/`. Builds that ship them must carry these notices and, for FFmpeg, its source.
+Built from the upstream sources pinned in [`deps.lock`](deps.lock) (version, URL, SHA-256) by `tools/ci/fetch-deps.sh`
+and `tools/ci/build-deps.sh`, unmodified, into `deps/`. The unmodified source archives of all of them are in the
+`letsgo-<version>-source.tar.gz` published with every APK (`deps/dl/`), with the scripts that built them.
 
-| Component | How it is used | License | License text |
-|---|---|---|---|
-| **SDL 3** (incl. its Android Java glue) | `libSDL3.so` (shared) + Java classes | zlib | `LICENSES/SDL3-zlib.txt` |
-| **FFmpeg** (`libavformat`, `libavcodec`, `libavutil`, `libswscale`, `libswresample`) | shared libraries, configured without `--enable-gpl` / `--enable-nonfree` (`rebuild-ffmpeg-opus.sh`) | LGPL 2.1 or later | `LICENSES/FFmpeg-LGPL-2.1.txt`, `LICENSES/FFmpeg-LICENSE.md` |
-| **shaderc**, **SPIRV-Tools** | static, inside `liblasrecomp.so` | Apache 2.0 | `LICENSES/shaderc-Apache-2.0.txt`, `LICENSES/SPIRV-Tools-Apache-2.0.txt` |
-| **glslang** | static, inside `liblasrecomp.so` | BSD-3-Clause / BSD-2-Clause / MIT / Apache 2.0 (see file) | `LICENSES/glslang-LICENSE.txt` |
-| **libadrenotools** + **liblinkernsbypass** | `libadrenotools.so` (shared) | BSD-2-Clause | `LICENSES/libadrenotools-BSD-2-Clause.txt`, `LICENSES/liblinkernsbypass-BSD-2-Clause.txt` |
-| **LLVM libc++** (`libc++_shared.so` from the Android NDK 28.2.13676358) | shared | Apache 2.0 with LLVM Exceptions | `LICENSES/LLVM-libcxx-Apache-2.0-WITH-LLVM-exception.txt` |
-| **libarchive** 3.8.1 (zip, rar, rar5 and 7zip readers; `build-modunpack.sh`) | static, inside `libmodunpack.so` | BSD-2-Clause (see file) | `LICENSES/libarchive-BSD-2-Clause.txt` |
-| **liblzma** (XZ Utils 5.8.1; `build-modunpack.sh`) | static, inside `libmodunpack.so` | 0BSD | `LICENSES/liblzma-0BSD.txt` |
+| Component | Version | How it is used | License | License text |
+|---|---|---|---|---|
+| **SDL 3** (incl. its Android Java glue) | 3.4.18 | `libSDL3.so` (shared) + Java classes | zlib | `LICENSES/SDL3-zlib.txt` |
+| **FFmpeg** (`libavformat`, `libavcodec`, `libavutil`, `libswscale`, `libswresample`) | 9.0.2 | shared libraries, configured without `--enable-gpl` / `--enable-nonfree` (checked by `tools/ci/build-deps.sh`); replaceable by the user (separate `.so`) | LGPL 2.1 or later | `LICENSES/FFmpeg-LGPL-2.1.txt`, `LICENSES/FFmpeg-LICENSE.md` |
+| **shaderc** | 2026.3 | static, inside `liblasrecomp.so` | Apache 2.0 | `LICENSES/shaderc-Apache-2.0.txt` |
+| **SPIRV-Tools** | `b707790` (shaderc 2026.3 DEPS) | static, inside `liblasrecomp.so` | Apache 2.0 | `LICENSES/SPIRV-Tools-Apache-2.0.txt` |
+| **SPIRV-Headers** | `29981f6` (shaderc 2026.3 DEPS) | headers compiled into SPIRV-Tools / glslang | MIT (Khronos) / CC-BY-4.0 (see file) | `LICENSES/SPIRV-Headers-LICENSE.txt` |
+| **glslang** | `168d452` (shaderc 2026.3 DEPS) | static, inside `liblasrecomp.so` | BSD-3-Clause / BSD-2-Clause / MIT / Apache 2.0 / GPL-3.0-or-later WITH Bison-exception-2.2 (generated parser; see file) | `LICENSES/glslang-LICENSE.txt` |
+| **libadrenotools** | `8fae8ce` | `libadrenotools.so`, `libhook_impl.so`, `libmain_hook.so` (shared) | BSD-2-Clause | `LICENSES/libadrenotools-BSD-2-Clause.txt` |
+| **liblinkernsbypass** | `aa39758` (libadrenotools' submodule) | static, inside the libadrenotools libraries | BSD-2-Clause | `LICENSES/liblinkernsbypass-BSD-2-Clause.txt` |
+| **LLVM libc++** (`libc++_shared.so` from the Android NDK 28.2.13676358) | NDK 28.2 | shared | Apache 2.0 with LLVM Exceptions | `LICENSES/LLVM-libcxx-Apache-2.0-WITH-LLVM-exception.txt` |
+| **libarchive** (zip, rar, rar5 and 7zip readers; `build-modunpack.sh`) | 3.8.1 | static, inside `libmodunpack.so` | BSD-2-Clause (see file) | `LICENSES/libarchive-BSD-2-Clause.txt` |
+| **liblzma** (XZ Utils; `build-modunpack.sh`) | 5.8.1 | static, inside `libmodunpack.so` | 0BSD | `LICENSES/liblzma-0BSD.txt` |
 
-## 3b. On-device game builder kit (APKs built with `LETSGO_KIT_SOURCE`)
+## 3b. On-device game builder kit (`assets/buildkit/` and programs in `lib/arm64-v8a/`)
 
-`tools/stage-buildkit.py` copies, from the game-free APK of Nycolazs/LASRecomp-Android-Plus `android-v1.2.0`
-(SHA-256 pinned in the script), `liblaspython.so`, `libpython3.14.so`, `libunicorn.so`, `libcapstone.so`, `libzig.so`,
-the Python home, clang/sysroot headers and `libclang_rt.builtins`, together with that APK's own `assets/licenses/`
-(staged as `assets/buildkit/licenses/`). Those components are not listed one by one here yet; in particular
-**Unicorn** is GPL-2.0 and its source offer has not been documented. See `LICENSES/SOURCES.md`.
+The kit that compiles the player's own game code on the phone is built by `tools/ci/build-buildkit.sh` from the
+releases pinned in `deps.lock` (same recipe as Nycolazs/LASRecomp-Android-Plus `android-v1.2.0`,
+`tools/android/ondevice/*.sh`, MIT; its prebuilt APK is no longer used for anything distributed) and staged by
+`tools/stage-buildkit.py` (`config.json`: `"kit_origin": "source"`). It contains no game code or data.
+
+| Component | Version | In the APK | License | License text |
+|---|---|---|---|---|
+| **CPython** (python.org's official Android release) | 3.14.8 | `libpython3.14.so`, trimmed standard library in `assets/buildkit/pyhome/`; `liblaspython.so` is its launcher (`tools/ci/kit/pylauncher.c`, from LASRecomp-Android-Plus, MIT) | PSF-2.0 (the file also lists the libraries CPython's modules use) | `LICENSES/CPython-PSF-2.0.txt`, `LICENSES/LASRecomp-MIT.txt` |
+| **Capstone** (ARM64 only) + Python bindings | 5.0.9 | `libcapstone.so`, `pyhome/.../site-packages/capstone/` | BSD-3-Clause; LLVM-derived tables: LLVM license | `LICENSES/capstone-BSD-3-Clause.txt`, `LICENSES/capstone-LICENSE_LLVM.txt` |
+| **Unicorn** (aarch64 only, includes QEMU code) + Python bindings | 2.1.4 | `libunicorn.so`, `pyhome/.../site-packages/unicorn/` | **GPL-2.0** (QEMU parts: GPL-2.0 / LGPL-2.1, see its LICENSE); bindings: BSD | `LICENSES/Unicorn-GPL-2.0.txt`, `LICENSES/Unicorn-qemu-COPYING.LIB.txt`, `LICENSES/Unicorn-qemu-LICENSE.txt` |
+| **python-lz4** with the **LZ4** library | 4.4.5 | `pyhome/.../site-packages/lz4/` (C extensions built here) | BSD-3-Clause (bindings), BSD-2-Clause (LZ4) | `LICENSES/python-lz4-BSD-3-Clause.txt`, `LICENSES/lz4-BSD-2-Clause.txt` |
+| **zig** (aarch64-linux release binary, unchanged; its clang and lld) | 0.17.0 (LLVM 22.1.8) | `libzig.so` | MIT; LLVM: Apache 2.0 with LLVM Exceptions; musl (linked in): MIT | `LICENSES/zig-MIT.txt`, `LICENSES/LLVM-Apache-2.0-WITH-LLVM-exception.txt`, `LICENSES/musl-COPYRIGHT.txt` |
+| **clang** compiler headers (from zig 0.17.0 x86_64-linux `lib/include`) | LLVM 22.1.8 | `assets/buildkit/cckit/clang/include/` | Apache 2.0 with LLVM Exceptions | `LICENSES/LLVM-Apache-2.0-WITH-LLVM-exception.txt` |
+| **Android NDK** pieces: bionic headers, `libclang_rt.builtins-aarch64-android.a` | NDK 28.2.13676358 | `assets/buildkit/cckit/` | Apache 2.0 / BSD / MIT (see NOTICE) | `assets/buildkit/licenses/android-ndk-NOTICE.txt`, `android-ndk-toolchain-NOTICE.txt` (copied from the NDK at build time) |
+
+**Source for the GPL / LGPL parts.** Unicorn (GPL-2.0) and FFmpeg (LGPL-2.1+) are distributed in binary form in the
+APK. Their complete corresponding source - the unmodified upstream archives `unicorn-2.1.4.tar.gz` and
+`ffmpeg-9.0.2.tar.xz`, plus the scripts that configured and built them (`tools/ci/build-buildkit.sh`,
+`tools/ci/build-deps.sh`, `deps.lock`) - is published next to every APK as `letsgo-<version>-source.tar.gz`, on the same
+release page.
 
 Every APK built by `build-apk.sh` also carries this file and `LICENSES/` as `assets/licenses/`.
 

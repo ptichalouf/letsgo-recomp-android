@@ -81,7 +81,8 @@ python3 -m unittest discover -s apk/test -p 'test_*.py' -v
 | `build-importer.sh` | compiles the NSP/XCI importer |
 | `build-modunpack.sh` | compiles the mod unpacker |
 | `build-apk.sh` | packages the Android APK |
-| `tools/stage-buildkit.py` | stages the buildkit |
+| `tools/stage-buildkit.py` | stages the buildkit (`LETSGO_KIT_DIR` = built from source) |
+| `deps.lock`, `tools/ci/` | pinned third-party inputs; fetch, build deps / kit from source, source tarball (`apk.yml`) |
 
 ## The repository guards
 
