@@ -180,13 +180,13 @@ jobs:
           rel=$(ls "$STAGING"/*.apk); [ "$(ls "$STAGING"/*.apk | wc -l)" = 1 ]
           pkg() { "$BT/aapt2" dump packagename "$1"; }
           [ "$(pkg "$rel")" = com.letsgorecomp ] || { echo "::error::release package is $(pkg "$rel")"; exit 1; }
-          "$BT/aapt2" dump badging "$rel" | grep -E "^(package: name|application-label:)"
-          "$BT/aapt2" dump badging "$rel" | grep -qE "^application-label:'Let.{1,2}s Go Recomp'$"
+          "$BT/aapt2" dump badging "$rel" | grep -E "^(package: name|application: label)"
+          "$BT/aapt2" dump badging "$rel" | grep -qF "application: label='Let's Go Recomp'"
           if [ "${{ inputs.release }}" != true ]; then
             ci=$(ls "$TESTVAR"/*.apk)
             [ "$(pkg "$ci")" = com.letsgorecomp.ci ] || { echo "::error::CI package is $(pkg "$ci")"; exit 1; }
-            "$BT/aapt2" dump badging "$ci" | grep -E "^(package: name|application-label:)"
-            "$BT/aapt2" dump badging "$ci" | grep -qE "^application-label:'Let.{1,2}s Go Recomp \(CI\)'$"
+            "$BT/aapt2" dump badging "$ci" | grep -E "^(package: name|application: label)"
+            "$BT/aapt2" dump badging "$ci" | grep -qF "application: label='Let's Go Recomp (CI)'"
             # Resources must resolve under the renamed package (Theme/Txt look them up by getPackageName()),
             # and the activities must keep their com.letsgorecomp class names (JNI symbols).
             "$BT/aapt2" dump resources "$ci" | grep -q 'com.letsgorecomp.ci:color/lg_bg'

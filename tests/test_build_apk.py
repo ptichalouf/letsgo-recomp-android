@@ -89,7 +89,7 @@ class Packaging(unittest.TestCase):
         self.assertEqual(self.build('none'), 0, self.output)
         info = self.badging()
         self.assertIn("package: name='com.example.packagetest.ci'", info)
-        self.assertRegex(info, r"(?m)^application-label:'Let.{1,2}s Go Recomp \(CI\)'$")
+        self.assertIn("application: label='Let's Go Recomp (CI)'", info)
         # The class stays in the original Java package: the relative name is fully qualified, not re-rooted.
         self.assertIn('com.example.packagetest.Main', subprocess.run(
             [str(SDK / 'build-tools/35.0.0/aapt2'), 'dump', 'xmltree', '--file', 'AndroidManifest.xml',
