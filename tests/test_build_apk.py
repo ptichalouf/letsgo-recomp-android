@@ -97,6 +97,15 @@ class Packaging(unittest.TestCase):
         self.assertEqual(self.build('none'), 0, self.output)
         self.assertIn('APK_NO_GAME_OK', self.output)
 
+    def test_notices_and_license_texts_are_bundled(self):
+        shutil.copy2(ROOT / 'THIRD_PARTY_NOTICES.md', self.root)
+        shutil.copytree(ROOT / 'LICENSES', self.root / 'LICENSES')
+        self.assertEqual(self.build('none'), 0, self.output)
+        names = set(zipfile.ZipFile(self.root / 'LetsGoRecomp-android.apk').namelist())
+        self.assertIn('assets/licenses/THIRD_PARTY_NOTICES.md', names)
+        for p in (ROOT / 'LICENSES').iterdir():
+            self.assertIn('assets/licenses/' + p.name, names)
+
     def test_with_valid_pair_embeds_game(self):
         self.native('build/game/liblasgame.so')
         (self.root / 'build/game/liblasgame.so.id').write_text(GID)

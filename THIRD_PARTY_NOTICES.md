@@ -17,7 +17,7 @@ from it, with its license. Full license texts are in [`LICENSES/`](LICENSES/).
 | **LAS Recomp** (https://github.com/peiikai/LASRecomp) - static recompiler and runtime | most of `src/runtime/`, `src/tools/`, `src/Makefile`, `importer/romfs_build.*`, `src/runtime/romfs_build.*` | MIT | Copyright (c) 2026 Peiikai | `LICENSES/LASRecomp-MIT.txt` (also `LICENSE-LASRecomp`) |
 | **letsgo-recomp** (https://github.com/raulzrrs/letsgo-recomp) - Let's Go port of LAS Recomp | `src/` (changes on top of LAS Recomp) | MIT | Copyright (c) 2026 raulzito12345rrs | `LICENSES/letsgo-recomp-MIT.txt` |
 | **letsgo-recomp-android** (https://github.com/CowKillers/letsgo-recomp-android) - Android layer | `apk/`, `importer/` integration, root build scripts | MIT (inherited, see question Q5 in the publication notes) | CowKillers | - |
-| **On-device NSP/XCI importer** from SwitchGamesRecomp / *Super Mario Bros. Wonder Recomp* by BelmanteGu, as found in **p5r-android** (https://github.com/Brandon04Gonzalez/p5r-android, `android/wonder/importer/`) | `importer/nximport.cpp`, `importer/nximport.h`, `importer/nximport_jni.cpp`, `importer/nxcrypto.cpp`, `importer/nxcrypto.h`, `apk/importer/wonder_nximport.cpp`, `apk/importer/nxcrypto.cpp`, `apk/importer/nxcrypto.h`, parts of `apk/importer/lgimport.cpp` | MIT | Copyright (c) 2026 BelmanteGu; p5r-android also lists Copyright (c) 2026 Brandon | `LICENSES/SwitchGamesRecomp-BelmanteGu-MIT.txt`, `LICENSES/p5r-android-MIT.txt` |
+| **On-device NSP/XCI importer** from SwitchGamesRecomp / *Super Mario Bros. Wonder Recomp* by BelmanteGu, as found in **p5r-android** (https://github.com/Brandon04Gonzalez/p5r-android, `android/wonder/importer/`) | `importer/nximport.cpp`, `importer/nximport.h`, `importer/nximport_jni.cpp`, `importer/nxcrypto.cpp`, `importer/nxcrypto.h`, `apk/importer/wonder_nximport.cpp`, `apk/importer/nxcrypto.cpp`, `apk/importer/nxcrypto.h`, parts of `apk/importer/lgimport.cpp` | MIT | Copyright (c) 2026 BelmanteGu; p5r-android also lists Copyright (c) 2026 Brandon | `LICENSES/p5r-android-MIT.txt` (carries BelmanteGu's copyright line; see `LICENSES/SOURCES.md`) |
 | **Ryujinx** (MIT) - audio renderer (the reverb is a port, the mixer is modelled on it) and shader instruction decoders (bit-layout reference) | `src/runtime/services/audio.c`, parts of `src/runtime/nvn/maxwell/translate.c` | MIT | Copyright (c) Ryujinx Team and Contributors | `LICENSES/Ryujinx-MIT.txt` |
 | **LASRecomp-Android-Plus** (https://github.com/Nycolazs/LASRecomp-Android-Plus) - Android platform layer reference | parts of `src/runtime/platform/android.c` | MIT | Copyright (c) 2026 Peiikai (as stated in that repository's LICENSE); Nycolazs | `LICENSES/LASRecomp-MIT.txt` |
 | **AMD FidelityFX Super Resolution 1** - EASU/RCAS, ported to GLSL | `src/runtime/nvn/vulkan/shaders.c` | MIT | Copyright (c) 2021 Advanced Micro Devices, Inc. | `LICENSES/AMD-FidelityFX-FSR1-MIT.txt` |
@@ -31,8 +31,17 @@ from it, with its license. Full license texts are in [`LICENSES/`](LICENSES/).
 
 | Component | File | Version / provenance | License | License text |
 |---|---|---|---|---|
-| **Mesa Turnip** Vulkan driver (`libvulkan_freedreno.so` + `meta.json`), packaged for AdrenoTools by The412Banner | `apk/assets/turnip-8g2.zip` | Byte-identical to the release asset `Turnip-v26.3.0-20261015-r5-8G2-OneUI.zip` of https://github.com/The412Banner/Banners-Turnip/releases/tag/v26.3.0-20261015-r5 (SHA-256 `043d22df9176f9a05aee0ebebfe8b55909f1db617406c4dbc40617b201a52ab3`). Built from Mesa commit `cf98950a3f548751301091ae4a224b8c8f59d988` (https://gitlab.freedesktop.org/mesa/mesa/-/commit/cf98950a3f548751301091ae4a224b8c8f59d988) with the packager's `patches/8g2_oneui.py` (A740 `TP_UBWC_FLAG_HINT`). | Mesa: MIT for the core and the freedreno/turnip driver; individual files may carry other licenses (see Mesa `docs/license.rst` and `licenses/`) | `LICENSES/Mesa-license.rst`, `LICENSES/Mesa-licenses-MIT.txt` |
 | **DejaVu Sans** font | `apk/assets/fonts/DejaVuSans.ttf` | 2.37 (https://github.com/dejavu-fonts/dejavu-fonts/releases/tag/version_2_37) | Bitstream Vera Fonts license; DejaVu changes in the public domain; Arev glyphs (c) Tavmjong Bah | `LICENSES/DejaVu-Fonts-License.txt` |
+
+## 2b. Downloaded on the user's request (not in this repository nor in the APK)
+
+`apk/assets/turnip-8g2.zip` was removed in `0cfb554` (GPU driver only by import or verified download). The launcher
+(`DriverCatalog.java`) can download a Turnip package from the packager's GitHub releases when the user asks, and checks
+its SHA-256. The package below is the one previously bundled, kept for reference:
+
+| Component | Where | Version / provenance | License | License text |
+|---|---|---|---|---|
+| **Mesa Turnip** Vulkan driver (`libvulkan_freedreno.so` + `meta.json`), packaged for AdrenoTools by The412Banner | not bundled (downloaded on request) | Byte-identical to the release asset `Turnip-v26.3.0-20261015-r5-8G2-OneUI.zip` of https://github.com/The412Banner/Banners-Turnip/releases/tag/v26.3.0-20261015-r5 (SHA-256 `043d22df9176f9a05aee0ebebfe8b55909f1db617406c4dbc40617b201a52ab3`). Built from Mesa commit `cf98950a3f548751301091ae4a224b8c8f59d988` (https://gitlab.freedesktop.org/mesa/mesa/-/commit/cf98950a3f548751301091ae4a224b8c8f59d988) with the packager's `patches/8g2_oneui.py` (A740 `TP_UBWC_FLAG_HINT`). | Mesa: MIT for the core and the freedreno/turnip driver; individual files may carry other licenses (see Mesa `docs/license.rst` and `licenses/`) | `LICENSES/Mesa-license.rst`, `LICENSES/Mesa-licenses-MIT.txt` |
 
 ## 3. Libraries linked into the Android build (not stored in this repository)
 
@@ -49,6 +58,16 @@ they expect these under `deps/`. Builds that ship them must carry these notices 
 | **LLVM libc++** (`libc++_shared.so` from the Android NDK 28.2.13676358) | shared | Apache 2.0 with LLVM Exceptions | `LICENSES/LLVM-libcxx-Apache-2.0-WITH-LLVM-exception.txt` |
 | **libarchive** 3.8.1 (zip, rar, rar5 and 7zip readers; `build-modunpack.sh`) | static, inside `libmodunpack.so` | BSD-2-Clause (see file) | `LICENSES/libarchive-BSD-2-Clause.txt` |
 | **liblzma** (XZ Utils 5.8.1; `build-modunpack.sh`) | static, inside `libmodunpack.so` | 0BSD | `LICENSES/liblzma-0BSD.txt` |
+
+## 3b. On-device game builder kit (APKs built with `LETSGO_KIT_SOURCE`)
+
+`tools/stage-buildkit.py` copies, from the game-free APK of Nycolazs/LASRecomp-Android-Plus `android-v1.2.0`
+(SHA-256 pinned in the script), `liblaspython.so`, `libpython3.14.so`, `libunicorn.so`, `libcapstone.so`, `libzig.so`,
+the Python home, clang/sysroot headers and `libclang_rt.builtins`, together with that APK's own `assets/licenses/`
+(staged as `assets/buildkit/licenses/`). Those components are not listed one by one here yet; in particular
+**Unicorn** is GPL-2.0 and its source offer has not been documented. See `LICENSES/SOURCES.md`.
+
+Every APK built by `build-apk.sh` also carries this file and `LICENSES/` as `assets/licenses/`.
 
 ## 4. Documentation and references
 
