@@ -74,7 +74,7 @@ if [ ! -f "$SC/build-android/libshaderc/libshaderc.a" ]; then
     unpack spirv-tools "$SC/third_party/spirv-tools"
     unpack spirv-headers "$SC/third_party/spirv-headers"
     cmake -S "$SC" -B "$SC/build-android" "${CMAKE_ANDROID[@]}" -DANDROID_PLATFORM=android-$API -DANDROID_STL=c++_shared \
-        -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON -DSHADERC_SKIP_INSTALL=ON \
+        -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON \
         -DSPIRV_SKIP_TESTS=ON -DSPIRV_SKIP_EXECUTABLES=ON -DSPIRV_WERROR=OFF -DENABLE_GLSLANG_BINARIES=OFF \
         -DGLSLANG_TESTS=OFF -DBUILD_SHARED_LIBS=OFF -DPython3_EXECUTABLE="$(command -v python3)" > "$DEPS/shaderc.log"
     cmake --build "$SC/build-android" --target shaderc -j"$JOBS" >> "$DEPS/shaderc.log" \
